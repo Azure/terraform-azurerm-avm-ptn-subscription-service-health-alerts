@@ -1,6 +1,14 @@
-output "private_endpoints" {
-  description = <<DESCRIPTION
-  A map of the private endpoints created.
-  DESCRIPTION
-  value       = var.private_endpoints_manage_dns_zone_group ? azurerm_private_endpoint.this_managed_dns_zone_groups : azurerm_private_endpoint.this_unmanaged_dns_zone_groups
+output "action_group_resource_ids" {
+  description = "A map of the resource IDs of the action groups created by this module, keyed by the `service_health_alerts` map key. Alerts that use an existing action group or no action group are not included."
+  value       = { for key, action_group in azapi_resource.action_group : key => action_group.id }
+}
+
+output "resource_group_resource_id" {
+  description = "The resource ID of the resource group that holds the service health alerts and action groups."
+  value       = local.resource_group_resource_id
+}
+
+output "service_health_alert_resource_ids" {
+  description = "A map of the resource IDs of the service health activity log alerts, keyed by the `service_health_alerts` map key."
+  value       = { for key, alert in azapi_resource.service_health_alert : key => alert.id }
 }
