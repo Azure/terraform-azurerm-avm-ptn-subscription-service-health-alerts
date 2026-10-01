@@ -12,25 +12,84 @@ This pattern module deploys Azure Service Health alerting for a subscription. It
 | `Service Health Security` | `ServiceHealth` | Security advisories (incident type `Security`) |
 | `Resource Health Unhealthy` | `ResourceHealth` | Platform- or user-initiated `Degraded` or `Unavailable` resource health events |
 
-By default, one alert of each type is created. Each alert can notify an action group that the module creates, with any of the supported receiver types, or an existing action group supplied by resource ID.
+By default, one alert of each type is created, without notifications.
 
-The alerts and action groups are placed in a resource group. By default the module creates a resource group named `rg-asha-<subscription ID>` in `location`; set `resource_group_creation_enabled = false` to use an existing resource group instead. Activity log alerts and action groups are global resources, so `location` only determines the resource group region and the telemetry region.
+The alerts and action groups are placed in a resource group. By default the module creates `rg-asha-<subscription ID>` in `location`. Set `resource_group_creation_enabled = false` to use an existing resource group. Activity log alerts and action groups are global resources, so `location` only sets the resource group region and the telemetry region.
 
-The module is implemented with the `Azure/azapi` provider and behaves like the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
+The module uses the `Azure/azapi` provider and behaves like the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
+
+## Notifications
+
+An alert notifies action groups. Each receiver type (`email_receivers`, `sms_receivers`, `webhook_receivers` and so on) is a list, so one action group can notify several recipients. The options below can be combined on the same alert.
+
+Shared action group, created once and notified by every alert, or by the alerts listed in `service_health_alert_keys`:
+
+```hcl
+shared_action_groups = {
+  ops = {
+    email_receivers = [
+      { name = "ops", email_address = "ops@contoso.com" },
+      { name = "oncall", email_address = "oncall@contoso.com" },
+    ]
+    sms_receivers = [
+      { name = "oncall-sms", country_code = "33", phone_number = "612345678" },
+    ]
+  }
+}
+```
+
+Action group dedicated to one alert:
+
+```hcl
+service_health_alerts = {
+  incident = {
+    service_health_alert = "Service Health Incident"
+    action_group = {
+      email_receivers = [{ name = "incident", email_address = "incident@contoso.com" }]
+    }
+  }
+}
+```
+
+Existing action group:
+
+```hcl
+action_group = {
+  existing_action_group = {
+    resource_id = "/subscriptions/<subscription ID>/resourceGroups/<resource group>/providers/Microsoft.Insights/actionGroups/<name>"
+  }
+}
+```
+
+Action groups have no Microsoft Teams receiver. To post to Teams, use a `logic_app_receivers` entry pointing to a Logic App that sends the message.
+
+### Receiver secrets
+
+Webhook service URIs, Logic App callback URLs, Azure Function trigger URLs and Automation webhook URIs usually contain secrets. Supply them in `service_health_alert_receiver_secrets` or `shared_action_group_receiver_secrets`, keyed by the alert or shared action group key and then by receiver name:
+
+```hcl
+shared_action_group_receiver_secrets = {
+  ops = {
+    logic_app_receiver_callback_urls = {
+      teams = var.teams_logic_app_callback_url
+    }
+  }
+}
+```
+
+These values are sent through the write-only `sensitive_body` argument of the AzAPI provider. They are not shown in plan output or stored in state; the provider keeps only a hash of them to detect changes. Saved plan files still contain input variable values. Supplying receiver secrets requires Terraform 1.11 or later.
 
 ## Required permissions
 
-The identity running Terraform needs, on the target subscription:
+On the target subscription:
 
 - `Microsoft.Resources/subscriptions/resourceGroups/write` when the module creates the resource group.
-- `Microsoft.Insights/activityLogAlerts/*` and `Microsoft.Insights/actionGroups/*` on the resource group, for example through the Monitoring Contributor or Contributor role.
+- `Microsoft.Insights/activityLogAlerts/*` and `Microsoft.Insights/actionGroups/*`, for example through the Monitoring Contributor or Contributor role.
 - `Microsoft.Authorization/locks/*` when `lock` is set, for example through the Owner or User Access Administrator role.
 
-## Notes
+## Locks
 
-- Webhook service URIs, Logic App callback URLs, Azure Function trigger URLs and Automation webhook URIs usually contain secrets. Supply them through the sensitive `service_health_alert_receiver_secrets` variable, keyed by alert key and receiver name, not in `service_health_alerts`. The module sends them through the write-only `sensitive_body` argument of the AzAPI provider, so they are not shown in plan output or stored in Terraform state. The provider keeps only a hash of them in private state to detect changes. Saved plan files still contain input variable values, so protect them accordingly.
-- Supplying `service_health_alert_receiver_secrets` requires Terraform 1.11 or later, because `sensitive_body` is a write-only argument. Without secret receivers, the module supports Terraform 1.9 or later.
-- When `lock` is set, the module locks every alert and every action group it creates, and the resource group when the module creates it. An existing resource group is not locked.
+When `lock` is set, the module locks every alert and action group it creates, and the resource group when it creates it. An existing resource group or action group is not locked.
 
 <!-- markdownlint-disable MD033 -->
 ## Requirements
@@ -39,7 +98,7 @@ The following requirements are needed by this module:
 
 - <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.9, < 2.0)
 
-- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.12)
+- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.13)
 
 - <a name="requirement_modtm"></a> [modtm](#requirement\_modtm) (~> 0.3)
 
@@ -53,8 +112,10 @@ The following resources are used by this module:
 - [azapi_resource.lock_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.lock_resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.lock_service_health_alert](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.lock_shared_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.service_health_alert](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.shared_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [modtm_telemetry.telemetry](https://registry.terraform.io/providers/azure/modtm/latest/docs/resources/telemetry) (resource)
 - [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
 - [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
@@ -90,7 +151,7 @@ Default: `true`
 
 Description: Paths in each resource's `body` whose changes the AzAPI provider ignores. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
 
-Paths use dot notation, for example `properties.enabled`. Individual list items cannot be targeted — ignore the whole list property instead. Configuration changes at an ignored path are **not** sent to Azure until that path is removed from the list.
+Paths use dot notation, for example `properties.enabled`. Individual list items cannot be targeted; ignore the whole list property instead. Configuration changes at an ignored path are **not** sent to Azure until that path is removed from the list.
 
 Supplying a non-empty value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument. Changes take effect only after an apply, because the value is held in provider-private state.
 
@@ -229,7 +290,7 @@ Description: A map of service health alerts to create as activity log alerts sco
 - `name` - (Optional) The name of the activity log alert. Defaults to the `service_health_alert` value with spaces removed and an `Alert` suffix, for example `ServiceHealthIncidentAlert`. Names must be unique within the map.
 - `description` - (Optional) The description of the activity log alert. Defaults to a description of the selected `service_health_alert`.
 - `enabled` - (Optional) Whether the activity log alert is enabled. Defaults to `true`.
-- `action_group` - (Optional) The action group notified by the alert. If not set, the alert has no action group.
+- `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead.
   - `existing_action_group` - (Optional) Use an existing action group instead of creating one. When set, all other `action_group` attributes are ignored.
     - `resource_id` - (Required) The resource ID of the existing action group.
   - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`.
@@ -398,6 +459,112 @@ Default:
 }
 ```
 
+### <a name="input_shared_action_group_receiver_secrets"></a> [shared\_action\_group\_receiver\_secrets](#input\_shared\_action\_group\_receiver\_secrets)
+
+Description: Secret URLs for the receivers of the shared action groups, keyed by the `shared_action_groups` key and then by receiver `name`. Same attributes and behavior as `service_health_alert_receiver_secrets`. Supplying a non-empty value requires Terraform 1.11 or later.
+
+Type:
+
+```hcl
+map(object({
+    automation_runbook_receiver_service_uris  = optional(map(string), {})
+    azure_function_receiver_http_trigger_urls = optional(map(string), {})
+    logic_app_receiver_callback_urls          = optional(map(string), {})
+    webhook_receiver_service_uris             = optional(map(string), {})
+  }))
+```
+
+Default: `{}`
+
+### <a name="input_shared_action_groups"></a> [shared\_action\_groups](#input\_shared\_action\_groups)
+
+Description: A map of action groups created once by the module and notified by several alerts. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time. An alert can be notified by its own `action_group` and by any number of shared action groups.
+
+- `name` - (Optional) The name of the action group. Defaults to `ag-<map key>`.
+- `group_short_name` - (Optional) The short name used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the name.
+- `enabled` - (Optional) Whether the action group is enabled. Defaults to `true`.
+- `service_health_alert_keys` - (Optional) The `service_health_alerts` keys of the alerts that notify this action group. Defaults to `null`, which means every alert.
+- `arm_role_receivers`, `automation_runbook_receivers`, `azure_app_push_receivers`, `azure_function_receivers`, `email_receivers`, `event_hub_receivers`, `itsm_receivers`, `logic_app_receivers`, `sms_receivers`, `voice_receivers`, `webhook_receivers` - (Optional) Receiver lists with the same attributes as `action_group` in `service_health_alerts`. Secret URLs go in `shared_action_group_receiver_secrets`.
+
+Type:
+
+```hcl
+map(object({
+    name                      = optional(string)
+    group_short_name          = optional(string)
+    enabled                   = optional(bool, true)
+    service_health_alert_keys = optional(set(string))
+    arm_role_receivers = optional(list(object({
+      name                    = string
+      role_id                 = string
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    automation_runbook_receivers = optional(list(object({
+      name                           = string
+      automation_account_resource_id = string
+      is_global_runbook              = bool
+      runbook_name                   = string
+      webhook_resource_id            = string
+      use_common_alert_schema        = optional(bool, false)
+    })), [])
+    azure_app_push_receivers = optional(list(object({
+      name          = string
+      email_address = string
+    })), [])
+    azure_function_receivers = optional(list(object({
+      name                     = string
+      function_app_resource_id = string
+      function_name            = string
+      use_common_alert_schema  = optional(bool, false)
+    })), [])
+    email_receivers = optional(list(object({
+      name                    = string
+      email_address           = string
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    event_hub_receivers = optional(list(object({
+      name                    = string
+      event_hub_name          = string
+      event_hub_namespace     = string
+      subscription_id         = string
+      tenant_id               = optional(string)
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    itsm_receivers = optional(list(object({
+      name                 = string
+      connection_id        = string
+      region               = string
+      ticket_configuration = string
+      workspace_id         = string
+    })), [])
+    logic_app_receivers = optional(list(object({
+      name                    = string
+      logic_app_resource_id   = string
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    sms_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+    voice_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+    webhook_receivers = optional(list(object({
+      name                    = string
+      identifier_uri          = optional(string)
+      object_id               = optional(string)
+      tenant_id               = optional(string)
+      use_aad_auth            = optional(bool, false)
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+  }))
+```
+
+Default: `{}`
+
 ### <a name="input_subscription_id"></a> [subscription\_id](#input\_subscription\_id)
 
 Description: The ID of the subscription to monitor and deploy the alerts into. When `null`, the subscription of the current AzAPI provider context is used.
@@ -451,6 +618,10 @@ Description: The resource ID of the resource group that holds the service health
 ### <a name="output_service_health_alert_resource_ids"></a> [service\_health\_alert\_resource\_ids](#output\_service\_health\_alert\_resource\_ids)
 
 Description: A map of the resource IDs of the service health activity log alerts, keyed by the `service_health_alerts` map key.
+
+### <a name="output_shared_action_group_resource_ids"></a> [shared\_action\_group\_resource\_ids](#output\_shared\_action\_group\_resource\_ids)
+
+Description: A map of the resource IDs of the shared action groups, keyed by the `shared_action_groups` map key.
 
 ## Modules
 

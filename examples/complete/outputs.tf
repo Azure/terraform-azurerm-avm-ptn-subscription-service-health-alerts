@@ -7,3 +7,8 @@ output "service_health_alert_resource_ids" {
   description = "The resource IDs of the service health alerts."
   value       = module.test.service_health_alert_resource_ids
 }
+
+output "shared_action_group_resource_ids" {
+  description = "The resource IDs of the shared action groups created by the module."
+  value       = module.test.shared_action_group_resource_ids
+}

@@ -4,10 +4,12 @@
 
 This deploys the module into an existing resource group and exercises its optional inputs:
 
-- `resource_group_creation_enabled = false` with a resource group and a shared action group created by the example itself.
+- `resource_group_creation_enabled = false` with a resource group and an action group created by the example itself.
 - A subset of alert types with custom names, descriptions and a disabled resource health alert.
-- An action group created by the module with email and webhook receivers, and alerts that reuse the existing shared action group. The webhook service URI is passed through the sensitive `service_health_alert_receiver_secrets` variable.
-- A `CanNotDelete` lock on every alert and on the created action group, tags, `retry` and `timeouts`.
+- A dedicated action group for the incident alert, with email and webhook receivers. The webhook service URI is passed through the sensitive `service_health_alert_receiver_secrets` variable.
+- A shared action group with two email receivers, notified by the incident, advisory and security alerts.
+- An existing action group, created by the example, notified by the maintenance alert.
+- A `CanNotDelete` lock on every alert and on both action groups created by the module, tags, `retry` and `timeouts`.
 
 This example requires Terraform 1.11 or later because it supplies a receiver secret. The receivers use `example.com` addresses, which cannot receive mail. Replace them before using this configuration outside a test subscription.
 
@@ -32,14 +34,14 @@ resource "azapi_resource" "resource_group" {
   response_export_values = []
 }
 
-resource "azapi_resource" "shared_action_group" {
+resource "azapi_resource" "existing_action_group" {
   location  = "global"
-  name      = "ag-asha-shared-${random_string.suffix.result}"
+  name      = "ag-asha-existing-${random_string.suffix.result}"
   parent_id = azapi_resource.resource_group.id
   type      = "Microsoft.Insights/actionGroups@2023-01-01"
   body = {
     properties = {
-      groupShortName = "ashshared"
+      groupShortName = "ashexisting"
       enabled        = true
       emailReceivers = [
         {
@@ -100,30 +102,38 @@ module "test" {
       service_health_alert = "Service Health Maintenance"
       action_group = {
         existing_action_group = {
-          resource_id = azapi_resource.shared_action_group.id
+          resource_id = azapi_resource.existing_action_group.id
         }
       }
     }
     advisory = {
       service_health_alert = "Service Health Advisory"
-      action_group = {
-        existing_action_group = {
-          resource_id = azapi_resource.shared_action_group.id
-        }
-      }
     }
     security = {
       service_health_alert = "Service Health Security"
       name                 = "ServiceHealthSecurityAdvisoryAlert"
-      action_group = {
-        existing_action_group = {
-          resource_id = azapi_resource.shared_action_group.id
-        }
-      }
     }
     resource_health = {
       service_health_alert = "Resource Health Unhealthy"
       enabled              = false
+    }
+  }
+  shared_action_groups = {
+    platform = {
+      name                      = "ag-asha-platform-${random_string.suffix.result}"
+      group_short_name          = "ashplatform"
+      service_health_alert_keys = ["incident", "advisory", "security"]
+      email_receivers = [
+        {
+          name          = "platform-team"
+          email_address = "platform-team@example.com"
+        },
+        {
+          name                    = "platform-lead"
+          email_address           = "platform-lead@example.com"
+          use_common_alert_schema = true
+        }
+      ]
     }
   }
   subscription_id = data.azapi_client_config.current.subscription_id
@@ -145,7 +155,7 @@ The following requirements are needed by this module:
 
 - <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.11, < 2.0)
 
-- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.12)
+- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.13)
 
 - <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5)
 
@@ -153,8 +163,8 @@ The following requirements are needed by this module:
 
 The following resources are used by this module:
 
+- [azapi_resource.existing_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.shared_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [random_string.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) (resource)
 - [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
 
@@ -196,6 +206,10 @@ Description: The resource IDs of the action groups created by the module.
 ### <a name="output_service_health_alert_resource_ids"></a> [service\_health\_alert\_resource\_ids](#output\_service\_health\_alert\_resource\_ids)
 
 Description: The resource IDs of the service health alerts.
+
+### <a name="output_shared_action_group_resource_ids"></a> [shared\_action\_group\_resource\_ids](#output\_shared\_action\_group\_resource\_ids)
+
+Description: The resource IDs of the shared action groups created by the module.
 
 ## Modules
 

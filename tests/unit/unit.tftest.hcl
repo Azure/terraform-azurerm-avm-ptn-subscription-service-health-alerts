@@ -21,6 +21,13 @@ override_resource {
 }
 
 override_resource {
+  target = azapi_resource.shared_action_group
+  values = {
+    id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-mock/providers/Microsoft.Insights/actionGroups/ag-shared-mock"
+  }
+}
+
+override_resource {
   target = azapi_resource.service_health_alert
   values = {
     id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-mock/providers/Microsoft.Insights/activityLogAlerts/ala-mock"
@@ -339,7 +346,7 @@ run "action_groups" {
   }
 
   assert {
-    condition = nonsensitive(local.action_group_sensitive_bodies["incident"]) == {
+    condition = nonsensitive(local.action_group_sensitive_bodies["alert/incident"]) == {
       properties = {
         webhookReceivers = [{ name = "hook", serviceUri = "https://example.com/hook?token=secret" }]
       }
@@ -353,7 +360,7 @@ run "action_groups" {
   }
 
   assert {
-    condition     = !contains(keys(local.action_group_sensitive_bodies), "maintenance")
+    condition     = !contains(keys(local.action_group_sensitive_bodies), "alert/maintenance")
     error_message = "An action group without secret receivers should not get a sensitive body."
   }
 
@@ -562,7 +569,7 @@ run "receiver_mapping" {
   }
 
   assert {
-    condition = nonsensitive(local.action_group_sensitive_bodies["incident"]) == {
+    condition = nonsensitive(local.action_group_sensitive_bodies["alert/incident"]) == {
       properties = {
         automationRunbookReceivers = [{ name = "runbook", serviceUri = "https://example.azure-automation.net/webhooks?token=secret" }]
         azureFunctionReceivers     = [{ name = "func", httpTriggerUrl = "https://fa.azurewebsites.net/api/notify?code=secret" }]
@@ -939,4 +946,173 @@ run "duplicate_secret_receiver_names" {
   }
 
   expect_failures = [var.service_health_alerts]
+}
+
+run "shared_action_groups" {
+  command = apply
+
+  variables {
+    lock = {
+      kind = "CanNotDelete"
+    }
+    shared_action_groups = {
+      ops = {
+        email_receivers = [
+          {
+            name          = "ops"
+            email_address = "ops@example.com"
+          },
+          {
+            name          = "oncall"
+            email_address = "oncall@example.com"
+          }
+        ]
+        sms_receivers = [
+          {
+            name         = "oncall-sms"
+            country_code = "1"
+            phone_number = "5555550100"
+          }
+        ]
+      }
+      security = {
+        name                      = "ag-security-team"
+        group_short_name          = "secteam"
+        service_health_alert_keys = ["service_health_security"]
+        webhook_receivers = [
+          {
+            name = "siem"
+          }
+        ]
+      }
+    }
+    shared_action_group_receiver_secrets = {
+      security = {
+        webhook_receiver_service_uris = {
+          siem = "https://example.com/siem?token=secret"
+        }
+      }
+    }
+    service_health_alerts = {
+      service_health_incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          email_receivers = [
+            {
+              name          = "incident-team"
+              email_address = "incident@example.com"
+            }
+          ]
+        }
+      }
+      service_health_security = {
+        service_health_alert = "Service Health Security"
+      }
+    }
+  }
+
+  assert {
+    condition     = toset(keys(azapi_resource.shared_action_group)) == toset(["ops", "security"])
+    error_message = "One action group should be created per shared_action_groups entry."
+  }
+
+  assert {
+    condition     = azapi_resource.shared_action_group["ops"].name == "ag-ops" && azapi_resource.shared_action_group["ops"].body.properties.groupShortName == "ag-ops"
+    error_message = "The shared action group name and short name should default from the map key."
+  }
+
+  assert {
+    condition     = azapi_resource.shared_action_group["security"].name == "ag-security-team" && azapi_resource.shared_action_group["security"].body.properties.groupShortName == "secteam"
+    error_message = "Explicit shared action group name and short name should be used."
+  }
+
+  assert {
+    condition     = length(azapi_resource.shared_action_group["ops"].body.properties.emailReceivers) == 2 && length(azapi_resource.shared_action_group["ops"].body.properties.smsReceivers) == 1
+    error_message = "A shared action group should hold several receivers."
+  }
+
+  assert {
+    condition     = azapi_resource.shared_action_group["security"].body.properties.webhookReceivers == [{ name = "siem", useAadAuth = false, useCommonAlertSchema = false }]
+    error_message = "The shared webhook service URI should not be in the body."
+  }
+
+  assert {
+    condition = nonsensitive(local.action_group_sensitive_bodies["shared/security"]) == {
+      properties = {
+        webhookReceivers = [{ name = "siem", serviceUri = "https://example.com/siem?token=secret" }]
+      }
+    }
+    error_message = "The shared webhook service URI should be passed in the sensitive body."
+  }
+
+  assert {
+    condition = azapi_resource.service_health_alert["service_health_incident"].body.properties.actions.actionGroups == [
+      { actionGroupId = azapi_resource.action_group["service_health_incident"].id },
+      { actionGroupId = azapi_resource.shared_action_group["ops"].id },
+    ]
+    error_message = "An alert should notify its own action group and every shared action group that targets all alerts."
+  }
+
+  assert {
+    condition     = length(azapi_resource.service_health_alert["service_health_security"].body.properties.actions.actionGroups) == 2
+    error_message = "The security alert should notify the ops and security shared action groups."
+  }
+
+  assert {
+    condition     = toset(keys(azapi_resource.lock_shared_action_group)) == toset(["ops", "security"])
+    error_message = "Every shared action group should be locked."
+  }
+
+  assert {
+    condition     = output.shared_action_group_resource_ids == { for key, action_group in azapi_resource.shared_action_group : key => action_group.id }
+    error_message = "The shared action group output should list the shared action groups."
+  }
+}
+
+run "shared_action_group_unknown_alert_key" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      ops = {
+        service_health_alert_keys = ["not_an_alert"]
+      }
+    }
+  }
+
+  expect_failures = [var.shared_action_groups]
+}
+
+run "shared_action_group_missing_secret" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      ops = {
+        webhook_receivers = [
+          {
+            name = "hook"
+          }
+        ]
+      }
+    }
+  }
+
+  expect_failures = [azapi_resource.shared_action_group]
+}
+
+run "shared_action_group_secret_for_unknown_group" {
+  command = plan
+
+  variables {
+    shared_action_group_receiver_secrets = {
+      not_a_group = {
+        webhook_receiver_service_uris = {
+          hook = "https://example.com/hook"
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.shared_action_group_receiver_secrets]
 }

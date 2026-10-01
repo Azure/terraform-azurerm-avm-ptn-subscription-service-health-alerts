@@ -18,14 +18,14 @@ resource "azapi_resource" "resource_group" {
   response_export_values = []
 }
 
-resource "azapi_resource" "shared_action_group" {
+resource "azapi_resource" "existing_action_group" {
   location  = "global"
-  name      = "ag-asha-shared-${random_string.suffix.result}"
+  name      = "ag-asha-existing-${random_string.suffix.result}"
   parent_id = azapi_resource.resource_group.id
   type      = "Microsoft.Insights/actionGroups@2023-01-01"
   body = {
     properties = {
-      groupShortName = "ashshared"
+      groupShortName = "ashexisting"
       enabled        = true
       emailReceivers = [
         {
@@ -86,30 +86,38 @@ module "test" {
       service_health_alert = "Service Health Maintenance"
       action_group = {
         existing_action_group = {
-          resource_id = azapi_resource.shared_action_group.id
+          resource_id = azapi_resource.existing_action_group.id
         }
       }
     }
     advisory = {
       service_health_alert = "Service Health Advisory"
-      action_group = {
-        existing_action_group = {
-          resource_id = azapi_resource.shared_action_group.id
-        }
-      }
     }
     security = {
       service_health_alert = "Service Health Security"
       name                 = "ServiceHealthSecurityAdvisoryAlert"
-      action_group = {
-        existing_action_group = {
-          resource_id = azapi_resource.shared_action_group.id
-        }
-      }
     }
     resource_health = {
       service_health_alert = "Resource Health Unhealthy"
       enabled              = false
+    }
+  }
+  shared_action_groups = {
+    platform = {
+      name                      = "ag-asha-platform-${random_string.suffix.result}"
+      group_short_name          = "ashplatform"
+      service_health_alert_keys = ["incident", "advisory", "security"]
+      email_receivers = [
+        {
+          name          = "platform-team"
+          email_address = "platform-team@example.com"
+        },
+        {
+          name                    = "platform-lead"
+          email_address           = "platform-lead@example.com"
+          use_common_alert_schema = true
+        }
+      ]
     }
   }
   subscription_id = data.azapi_client_config.current.subscription_id

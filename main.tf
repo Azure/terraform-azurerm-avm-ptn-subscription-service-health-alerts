@@ -26,17 +26,17 @@ resource "azapi_resource" "resource_group" {
 }
 
 resource "azapi_resource" "action_group" {
-  for_each = local.action_groups
+  for_each = local.alert_action_groups
 
   location               = "global"
-  name                   = each.value.name
+  name                   = local.action_group_configs[each.value].name
   parent_id              = local.resource_group_resource_id
   type                   = var.resource_types.insights_action_groups
-  body                   = each.value.body
+  body                   = local.action_group_bodies[each.value]
   ignore_body_changes    = length(var.ignore_body_changes.insights_action_groups) > 0 ? var.ignore_body_changes.insights_action_groups : null
   response_export_values = []
   retry                  = var.retry
-  sensitive_body         = lookup(local.action_group_sensitive_bodies, each.key, null)
+  sensitive_body         = lookup(local.action_group_sensitive_bodies, each.value, null)
   tags                   = var.tags
 
   dynamic "timeouts" {
@@ -52,11 +52,41 @@ resource "azapi_resource" "action_group" {
 
   lifecycle {
     precondition {
-      condition = alltrue([
-        for property in ["azureFunctionReceivers", "logicAppReceivers", "webhookReceivers"] :
-        length(setsubtract(local.action_group_receiver_names[each.key][property], local.action_group_receiver_secret_names[each.key][property])) == 0 && length(setsubtract(local.action_group_receiver_secret_names[each.key][property], local.action_group_receiver_names[each.key][property])) == 0
-      ]) && length(setsubtract(local.action_group_receiver_secret_names[each.key].automationRunbookReceivers, local.action_group_receiver_names[each.key].automationRunbookReceivers)) == 0
+      condition     = local.action_group_receiver_secrets_valid[each.value]
       error_message = "`service_health_alert_receiver_secrets[\"${each.key}\"]` must contain exactly one URL per Azure Function, Logic App and webhook receiver of the action group, keyed by receiver name, and may only contain automation runbook URIs for existing automation runbook receivers."
+    }
+  }
+}
+
+resource "azapi_resource" "shared_action_group" {
+  for_each = var.shared_action_groups
+
+  location               = "global"
+  name                   = local.action_group_configs["shared/${each.key}"].name
+  parent_id              = local.resource_group_resource_id
+  type                   = var.resource_types.insights_action_groups
+  body                   = local.action_group_bodies["shared/${each.key}"]
+  ignore_body_changes    = length(var.ignore_body_changes.insights_action_groups) > 0 ? var.ignore_body_changes.insights_action_groups : null
+  response_export_values = []
+  retry                  = var.retry
+  sensitive_body         = lookup(local.action_group_sensitive_bodies, "shared/${each.key}", null)
+  tags                   = var.tags
+
+  dynamic "timeouts" {
+    for_each = var.timeouts == null ? [] : [var.timeouts]
+
+    content {
+      create = timeouts.value.create
+      delete = timeouts.value.delete
+      read   = timeouts.value.read
+      update = timeouts.value.update
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = local.action_group_receiver_secrets_valid["shared/${each.key}"]
+      error_message = "`shared_action_group_receiver_secrets[\"${each.key}\"]` must contain exactly one URL per Azure Function, Logic App and webhook receiver of the action group, keyed by receiver name, and may only contain automation runbook URIs for existing automation runbook receivers."
     }
   }
 }
@@ -76,7 +106,7 @@ resource "azapi_resource" "service_health_alert" {
       }
       actions = {
         actionGroups = [
-          for action_group_resource_id in local.action_group_resource_ids[each.key] : {
+          for action_group_resource_id in local.alert_action_group_resource_ids[each.key] : {
             actionGroupId = action_group_resource_id
           }
         ]
@@ -103,10 +133,33 @@ resource "azapi_resource" "service_health_alert" {
 }
 
 resource "azapi_resource" "lock_action_group" {
-  for_each = var.lock == null ? toset([]) : toset(keys(local.action_groups))
+  for_each = var.lock == null ? toset([]) : toset(keys(local.alert_action_groups))
 
   name                   = local.lock.name
   parent_id              = azapi_resource.action_group[each.key].id
+  type                   = var.resource_types.authorization_locks
+  body                   = local.lock.body
+  ignore_body_changes    = length(var.ignore_body_changes.authorization_locks) > 0 ? var.ignore_body_changes.authorization_locks : null
+  response_export_values = []
+  retry                  = var.retry
+
+  dynamic "timeouts" {
+    for_each = var.timeouts == null ? [] : [var.timeouts]
+
+    content {
+      create = timeouts.value.create
+      delete = timeouts.value.delete
+      read   = timeouts.value.read
+      update = timeouts.value.update
+    }
+  }
+}
+
+resource "azapi_resource" "lock_shared_action_group" {
+  for_each = var.lock == null ? toset([]) : toset(keys(var.shared_action_groups))
+
+  name                   = local.lock.name
+  parent_id              = azapi_resource.shared_action_group[each.key].id
   type                   = var.resource_types.authorization_locks
   body                   = local.lock.body
   ignore_body_changes    = length(var.ignore_body_changes.authorization_locks) > 0 ? var.ignore_body_changes.authorization_locks : null
@@ -174,6 +227,8 @@ resource "azapi_resource" "lock_resource_group" {
     azapi_resource.action_group,
     azapi_resource.lock_action_group,
     azapi_resource.lock_service_health_alert,
+    azapi_resource.lock_shared_action_group,
     azapi_resource.service_health_alert,
+    azapi_resource.shared_action_group,
   ]
 }

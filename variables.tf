@@ -26,7 +26,7 @@ variable "ignore_body_changes" {
   description = <<DESCRIPTION
 Paths in each resource's `body` whose changes the AzAPI provider ignores. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
 
-Paths use dot notation, for example `properties.enabled`. Individual list items cannot be targeted — ignore the whole list property instead. Configuration changes at an ignored path are **not** sent to Azure until that path is removed from the list.
+Paths use dot notation, for example `properties.enabled`. Individual list items cannot be targeted; ignore the whole list property instead. Configuration changes at an ignored path are **not** sent to Azure until that path is removed from the list.
 
 Supplying a non-empty value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument. Changes take effect only after an apply, because the value is held in provider-private state.
 
@@ -266,7 +266,7 @@ A map of service health alerts to create as activity log alerts scoped to the ta
 - `name` - (Optional) The name of the activity log alert. Defaults to the `service_health_alert` value with spaces removed and an `Alert` suffix, for example `ServiceHealthIncidentAlert`. Names must be unique within the map.
 - `description` - (Optional) The description of the activity log alert. Defaults to a description of the selected `service_health_alert`.
 - `enabled` - (Optional) Whether the activity log alert is enabled. Defaults to `true`.
-- `action_group` - (Optional) The action group notified by the alert. If not set, the alert has no action group.
+- `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead.
   - `existing_action_group` - (Optional) Use an existing action group instead of creating one. When set, all other `action_group` attributes are ignored.
     - `resource_id` - (Required) The resource ID of the existing action group.
   - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`.
@@ -400,6 +400,170 @@ DESCRIPTION
     condition = alltrue(flatten([
       for alert in values(var.service_health_alerts) : [
         for receiver in try(alert.action_group.logic_app_receivers, []) :
+        can(provider::azapi::parse_resource_id("Microsoft.Logic/workflows", receiver.logic_app_resource_id))
+      ]
+    ]))
+    error_message = "Each Logic App receiver `logic_app_resource_id` must be a valid Logic App resource ID."
+  }
+}
+
+variable "shared_action_group_receiver_secrets" {
+  type = map(object({
+    automation_runbook_receiver_service_uris  = optional(map(string), {})
+    azure_function_receiver_http_trigger_urls = optional(map(string), {})
+    logic_app_receiver_callback_urls          = optional(map(string), {})
+    webhook_receiver_service_uris             = optional(map(string), {})
+  }))
+  default     = {}
+  description = <<DESCRIPTION
+Secret URLs for the receivers of the shared action groups, keyed by the `shared_action_groups` key and then by receiver `name`. Same attributes and behavior as `service_health_alert_receiver_secrets`. Supplying a non-empty value requires Terraform 1.11 or later.
+DESCRIPTION
+  nullable    = false
+  sensitive   = true
+
+  validation {
+    condition = alltrue([
+      for key in nonsensitive(keys(var.shared_action_group_receiver_secrets)) :
+      contains(keys(var.shared_action_groups), key)
+    ])
+    error_message = "Each key in `shared_action_group_receiver_secrets` must match a `shared_action_groups` key."
+  }
+}
+
+variable "shared_action_groups" {
+  type = map(object({
+    name                      = optional(string)
+    group_short_name          = optional(string)
+    enabled                   = optional(bool, true)
+    service_health_alert_keys = optional(set(string))
+    arm_role_receivers = optional(list(object({
+      name                    = string
+      role_id                 = string
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    automation_runbook_receivers = optional(list(object({
+      name                           = string
+      automation_account_resource_id = string
+      is_global_runbook              = bool
+      runbook_name                   = string
+      webhook_resource_id            = string
+      use_common_alert_schema        = optional(bool, false)
+    })), [])
+    azure_app_push_receivers = optional(list(object({
+      name          = string
+      email_address = string
+    })), [])
+    azure_function_receivers = optional(list(object({
+      name                     = string
+      function_app_resource_id = string
+      function_name            = string
+      use_common_alert_schema  = optional(bool, false)
+    })), [])
+    email_receivers = optional(list(object({
+      name                    = string
+      email_address           = string
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    event_hub_receivers = optional(list(object({
+      name                    = string
+      event_hub_name          = string
+      event_hub_namespace     = string
+      subscription_id         = string
+      tenant_id               = optional(string)
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    itsm_receivers = optional(list(object({
+      name                 = string
+      connection_id        = string
+      region               = string
+      ticket_configuration = string
+      workspace_id         = string
+    })), [])
+    logic_app_receivers = optional(list(object({
+      name                    = string
+      logic_app_resource_id   = string
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+    sms_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+    voice_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+    webhook_receivers = optional(list(object({
+      name                    = string
+      identifier_uri          = optional(string)
+      object_id               = optional(string)
+      tenant_id               = optional(string)
+      use_aad_auth            = optional(bool, false)
+      use_common_alert_schema = optional(bool, false)
+    })), [])
+  }))
+  default     = {}
+  description = <<DESCRIPTION
+A map of action groups created once by the module and notified by several alerts. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time. An alert can be notified by its own `action_group` and by any number of shared action groups.
+
+- `name` - (Optional) The name of the action group. Defaults to `ag-<map key>`.
+- `group_short_name` - (Optional) The short name used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the name.
+- `enabled` - (Optional) Whether the action group is enabled. Defaults to `true`.
+- `service_health_alert_keys` - (Optional) The `service_health_alerts` keys of the alerts that notify this action group. Defaults to `null`, which means every alert.
+- `arm_role_receivers`, `automation_runbook_receivers`, `azure_app_push_receivers`, `azure_function_receivers`, `email_receivers`, `event_hub_receivers`, `itsm_receivers`, `logic_app_receivers`, `sms_receivers`, `voice_receivers`, `webhook_receivers` - (Optional) Receiver lists with the same attributes as `action_group` in `service_health_alerts`. Secret URLs go in `shared_action_group_receiver_secrets`.
+DESCRIPTION
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for action_group in values(var.shared_action_groups) :
+      action_group.service_health_alert_keys == null ? true : alltrue([for key in action_group.service_health_alert_keys : contains(keys(var.service_health_alerts), key)])
+    ])
+    error_message = "Each `service_health_alert_keys` entry must match a `service_health_alerts` key."
+  }
+  validation {
+    condition = alltrue([
+      for action_group in values(var.shared_action_groups) :
+      action_group.group_short_name == null ? true : length(action_group.group_short_name) <= 12
+    ])
+    error_message = "Each shared action group `group_short_name` must be at most 12 characters."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for action_group in values(var.shared_action_groups) : [
+        for receivers in [
+          action_group.automation_runbook_receivers,
+          action_group.azure_function_receivers,
+          action_group.logic_app_receivers,
+          action_group.webhook_receivers,
+        ] : length(distinct([for receiver in receivers : receiver.name])) == length(receivers)
+      ]
+    ]))
+    error_message = "Automation runbook, Azure Function, Logic App and webhook receiver names must be unique within their receiver type in each shared action group, because their secrets are matched by name."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for action_group in values(var.shared_action_groups) : [
+        for receiver in action_group.automation_runbook_receivers :
+        can(provider::azapi::parse_resource_id("Microsoft.Automation/automationAccounts", receiver.automation_account_resource_id)) && can(provider::azapi::parse_resource_id("Microsoft.Automation/automationAccounts/webhooks", receiver.webhook_resource_id))
+      ]
+    ]))
+    error_message = "Each automation runbook receiver must use a valid Automation account resource ID and a valid Automation webhook resource ID."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for action_group in values(var.shared_action_groups) : [
+        for receiver in action_group.azure_function_receivers :
+        can(provider::azapi::parse_resource_id("Microsoft.Web/sites", receiver.function_app_resource_id))
+      ]
+    ]))
+    error_message = "Each Azure Function receiver `function_app_resource_id` must be a valid Function App resource ID."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for action_group in values(var.shared_action_groups) : [
+        for receiver in action_group.logic_app_receivers :
         can(provider::azapi::parse_resource_id("Microsoft.Logic/workflows", receiver.logic_app_resource_id))
       ]
     ]))
