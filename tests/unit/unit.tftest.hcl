@@ -1206,3 +1206,132 @@ run "action_group_name_invalid" {
 
   expect_failures = [azapi_resource.shared_action_group]
 }
+
+run "dedicated_action_group_names_collide_case_insensitively" {
+  command = plan
+
+  variables {
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          name = "ag-service-health"
+        }
+      }
+      maintenance = {
+        service_health_alert = "Service Health Maintenance"
+        action_group = {
+          name = "AG-Service-Health"
+        }
+      }
+    }
+  }
+
+  expect_failures = [azapi_resource.action_group]
+}
+
+run "alert_with_more_than_five_action_groups" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      one   = {}
+      two   = {}
+      three = {}
+      four  = {}
+      five  = {}
+    }
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          email_receivers = [{ name = "ops", email_address = "ops@example.com" }]
+        }
+      }
+    }
+  }
+
+  expect_failures = [azapi_resource.service_health_alert]
+}
+
+run "alert_with_five_action_groups" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      one   = {}
+      two   = {}
+      three = {}
+      four  = {}
+    }
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          email_receivers = [{ name = "ops", email_address = "ops@example.com" }]
+        }
+      }
+    }
+  }
+
+  assert {
+    condition     = length(azapi_resource.service_health_alert["incident"].body.properties.actions.actionGroups) == 5
+    error_message = "Five action groups per alert should be accepted."
+  }
+}
+
+run "secure_webhook_without_object_id" {
+  command = plan
+
+  variables {
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          webhook_receivers = [{ name = "secure-hook", use_aad_auth = true }]
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.service_health_alerts]
+}
+
+run "shared_secure_webhook_without_object_id" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      ops = {
+        webhook_receivers = [{ name = "secure-hook", use_aad_auth = true }]
+      }
+    }
+  }
+
+  expect_failures = [var.shared_action_groups]
+}
+
+run "existing_action_group_ignores_other_attributes" {
+  command = plan
+
+  variables {
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          existing_action_group = {
+            resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared/providers/Microsoft.Insights/actionGroups/ag-shared"
+          }
+          group_short_name    = "longer-than-twelve"
+          logic_app_receivers = [{ name = "logic", logic_app_resource_id = "not-a-resource-id" }]
+          webhook_receivers   = [{ name = "secure-hook", use_aad_auth = true }]
+        }
+      }
+    }
+  }
+
+  assert {
+    condition     = length(azapi_resource.action_group) == 0
+    error_message = "Attributes ignored because of existing_action_group should not fail validation."
+  }
+}

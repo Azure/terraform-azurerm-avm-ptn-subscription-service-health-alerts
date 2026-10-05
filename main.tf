@@ -146,6 +146,13 @@ resource "azapi_resource" "service_health_alert" {
       update = timeouts.value.update
     }
   }
+
+  lifecycle {
+    precondition {
+      condition     = length(local.alert_action_group_resource_ids[each.key]) <= 5
+      error_message = "The alert `service_health_alerts[\"${each.key}\"]` notifies ${length(local.alert_action_group_resource_ids[each.key])} action groups. An activity log alert supports at most five, counting its own action group and the shared action groups that target it."
+    }
+  }
 }
 
 resource "azapi_resource" "lock_action_group" {

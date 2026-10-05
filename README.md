@@ -290,8 +290,8 @@ Description: A map of service health alerts to create as activity log alerts sco
 - `name` - (Optional) The name of the activity log alert. Defaults to the `service_health_alert` value with spaces removed and an `Alert` suffix, for example `ServiceHealthIncidentAlert`. Names must be unique within the map, 1-260 characters, contain only alphanumerics, underscores, parentheses, hyphens and periods, and not end with a period.
 - `description` - (Optional) The description of the activity log alert. Defaults to a description of the selected `service_health_alert`.
 - `enabled` - (Optional) Whether the activity log alert is enabled. Defaults to `true`.
-- `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead. Receiver names must be unique across all receiver types of the action group.
-  - `existing_action_group` - (Optional) Use an existing action group instead of creating one. When set, all other `action_group` attributes are ignored.
+- `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead. Receiver names must be unique across all receiver types of the action group. An alert can notify at most five action groups in total, counting its own and the shared action groups that target it.
+  - `existing_action_group` - (Optional) Use an existing action group instead of creating one. When set, all other `action_group` attributes are ignored and not validated.
     - `resource_id` - (Required) The resource ID of the existing action group.
   - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`. Action group names must be unique, case-insensitively, across all action groups created by the module, 1-260 characters, must not contain `:<>+/&%\?|` or control characters, and must not end with a space or period.
   - `group_short_name` - (Optional) The short name of the action group, used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the alert name.
@@ -347,7 +347,7 @@ Description: A map of service health alerts to create as activity log alerts sco
   - `webhook_receivers` - (Optional) A list of webhook receivers. The service URI is supplied through `service_health_alert_receiver_secrets`.
     - `name` - (Required) The name of the receiver.
     - `identifier_uri` - (Optional) The identifier URI for Microsoft Entra authentication.
-    - `object_id` - (Optional) The object ID of the webhook application for Microsoft Entra authentication.
+    - `object_id` - (Optional) The object ID of the webhook application for Microsoft Entra authentication. Required when `use_aad_auth` is `true`.
     - `tenant_id` - (Optional) The tenant ID for Microsoft Entra authentication.
     - `use_aad_auth` - (Optional) Whether to use Microsoft Entra authentication. Defaults to `false`.
     - `use_common_alert_schema` - (Optional) Whether to use the common alert schema. Defaults to `false`.
@@ -483,7 +483,7 @@ Description: A map of action groups created once by the module and notified by s
 - `name` - (Optional) The name of the action group. Defaults to `ag-<map key>`. The same naming rules as `action_group.name` in `service_health_alerts` apply.
 - `group_short_name` - (Optional) The short name used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the name.
 - `enabled` - (Optional) Whether the action group is enabled. Defaults to `true`.
-- `service_health_alert_keys` - (Optional) The `service_health_alerts` keys of the alerts that notify this action group. Defaults to `null`, which means every alert.
+- `service_health_alert_keys` - (Optional) The `service_health_alerts` keys of the alerts that notify this action group. Defaults to `null`, which means every alert. An alert can notify at most five action groups in total.
 - `arm_role_receivers`, `automation_runbook_receivers`, `azure_app_push_receivers`, `azure_function_receivers`, `email_receivers`, `event_hub_receivers`, `itsm_receivers`, `logic_app_receivers`, `sms_receivers`, `voice_receivers`, `webhook_receivers` - (Optional) Receiver lists with the same attributes as `action_group` in `service_health_alerts`. Secret URLs go in `shared_action_group_receiver_secrets`.
 
 Type:
