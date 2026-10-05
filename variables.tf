@@ -81,8 +81,8 @@ variable "resource_group_name" {
   description = "The name of the resource group that holds the service health alerts and action groups. When `null`, the name defaults to `rg-asha-<subscription ID>`."
 
   validation {
-    condition     = var.resource_group_name == null || can(regex("^[-\\w\\._\\(\\)]{1,90}$", var.resource_group_name))
-    error_message = "`resource_group_name` must be 1-90 characters and contain only alphanumerics, underscores, parentheses, hyphens and periods."
+    condition     = var.resource_group_name == null || (can(regex("^[-\\w\\._\\(\\)]{1,90}$", var.resource_group_name)) && !endswith(var.resource_group_name, "."))
+    error_message = "`resource_group_name` must be 1-90 characters, contain only alphanumerics, underscores, parentheses, hyphens and periods, and not end with a period."
   }
 }
 
@@ -263,21 +263,21 @@ A map of service health alerts to create as activity log alerts scoped to the ta
   - `Service Health Advisory` - `ServiceHealth` events with incident type `ActionRequired` (health advisories).
   - `Service Health Security` - `ServiceHealth` events with incident type `Security` (security advisories).
   - `Resource Health Unhealthy` - `ResourceHealth` events with a platform- or user-initiated cause and a current health status of `Degraded` or `Unavailable`.
-- `name` - (Optional) The name of the activity log alert. Defaults to the `service_health_alert` value with spaces removed and an `Alert` suffix, for example `ServiceHealthIncidentAlert`. Names must be unique within the map.
+- `name` - (Optional) The name of the activity log alert. Defaults to the `service_health_alert` value with spaces removed and an `Alert` suffix, for example `ServiceHealthIncidentAlert`. Names must be unique within the map, 1-260 characters, contain only alphanumerics, underscores, parentheses, hyphens and periods, and not end with a period.
 - `description` - (Optional) The description of the activity log alert. Defaults to a description of the selected `service_health_alert`.
 - `enabled` - (Optional) Whether the activity log alert is enabled. Defaults to `true`.
-- `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead.
+- `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead. Receiver names must be unique across all receiver types of the action group.
   - `existing_action_group` - (Optional) Use an existing action group instead of creating one. When set, all other `action_group` attributes are ignored.
     - `resource_id` - (Required) The resource ID of the existing action group.
-  - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`.
+  - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`. Action group names must be unique, case-insensitively, across all action groups created by the module, 1-260 characters, must not contain `:<>+/&%\?|` or control characters, and must not end with a space or period.
   - `group_short_name` - (Optional) The short name of the action group, used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the alert name.
   - `enabled` - (Optional) Whether the action group is enabled. Defaults to `true`.
   - `arm_role_receivers` - (Optional) A list of Azure Resource Manager role receivers.
     - `name` - (Required) The name of the receiver.
-    - `role_id` - (Required) The ID of the built-in or custom role definition, for example `8e3af657-a8ff-443c-a75c-2fe8c4bcb635` for Owner.
+    - `role_id` - (Required) The ID of the role definition. Action groups only email members of Owner (`8e3af657-a8ff-443c-a75c-2fe8c4bcb635`), Contributor (`b24988ac-6180-42a0-ab88-20f7382dd24c`), Reader (`acdd72a7-3385-48ef-bd42-f606fba81ae7`), Monitoring Contributor (`749f88d5-cbae-40b8-bcfc-e573ddc772fa`) and Monitoring Reader (`43d0d8ad-25c7-4714-9337-8ba259a9fe05`).
     - `use_common_alert_schema` - (Optional) Whether to use the common alert schema. Defaults to `false`.
   - `automation_runbook_receivers` - (Optional) A list of Azure Automation runbook receivers. The webhook URI is supplied through `service_health_alert_receiver_secrets`.
-    - `name` - (Required) The name of the receiver. Must be unique among the automation runbook receivers of the action group.
+    - `name` - (Required) The name of the receiver.
     - `automation_account_resource_id` - (Required) The resource ID of the Automation account.
     - `is_global_runbook` - (Required) Whether the runbook is a global runbook.
     - `runbook_name` - (Required) The name of the runbook.
@@ -287,7 +287,7 @@ A map of service health alerts to create as activity log alerts scoped to the ta
     - `name` - (Required) The name of the receiver.
     - `email_address` - (Required) The email address registered for the Azure mobile app.
   - `azure_function_receivers` - (Optional) A list of Azure Function receivers. The HTTP trigger URL is supplied through `service_health_alert_receiver_secrets`.
-    - `name` - (Required) The name of the receiver. Must be unique among the Azure Function receivers of the action group.
+    - `name` - (Required) The name of the receiver.
     - `function_app_resource_id` - (Required) The resource ID of the Function App.
     - `function_name` - (Required) The name of the function in the Function App.
     - `use_common_alert_schema` - (Optional) Whether to use the common alert schema. Defaults to `false`.
@@ -309,7 +309,7 @@ A map of service health alerts to create as activity log alerts scoped to the ta
     - `ticket_configuration` - (Required) A JSON string with the ticket configuration of the ITSM action. Build it with `jsonencode`.
     - `workspace_id` - (Required) The Log Analytics workspace identifier of the ITSM connection.
   - `logic_app_receivers` - (Optional) A list of Logic App receivers. The callback URL is supplied through `service_health_alert_receiver_secrets`.
-    - `name` - (Required) The name of the receiver. Must be unique among the Logic App receivers of the action group.
+    - `name` - (Required) The name of the receiver.
     - `logic_app_resource_id` - (Required) The resource ID of the Logic App.
     - `use_common_alert_schema` - (Optional) Whether to use the common alert schema. Defaults to `false`.
   - `sms_receivers` - (Optional) A list of SMS receivers.
@@ -321,7 +321,7 @@ A map of service health alerts to create as activity log alerts scoped to the ta
     - `country_code` - (Required) The country code of the phone number.
     - `phone_number` - (Required) The phone number.
   - `webhook_receivers` - (Optional) A list of webhook receivers. The service URI is supplied through `service_health_alert_receiver_secrets`.
-    - `name` - (Required) The name of the receiver. Must be unique among the webhook receivers of the action group.
+    - `name` - (Required) The name of the receiver.
     - `identifier_uri` - (Optional) The identifier URI for Microsoft Entra authentication.
     - `object_id` - (Optional) The object ID of the webhook application for Microsoft Entra authentication.
     - `tenant_id` - (Optional) The tenant ID for Microsoft Entra authentication.
@@ -340,9 +340,9 @@ DESCRIPTION
   validation {
     condition = alltrue([
       for alert in values(var.service_health_alerts) :
-      alert.name == null || can(regex("^[-\\w\\._\\(\\)]+$", alert.name))
+      alert.name == null ? true : can(regex("^[-\\w\\._\\(\\)]{1,260}$", alert.name)) && !endswith(alert.name, ".")
     ])
-    error_message = "Each alert `name` may contain only alphanumerics, underscores, parentheses, hyphens and periods."
+    error_message = "Each alert `name` must be 1-260 characters, contain only alphanumerics, underscores, parentheses, hyphens and periods, and not end with a period."
   }
   validation {
     condition = length(distinct([
@@ -366,17 +366,26 @@ DESCRIPTION
     error_message = "Each `action_group.existing_action_group.resource_id` must be a valid action group resource ID."
   }
   validation {
-    condition = alltrue(flatten([
-      for alert in values(var.service_health_alerts) : [
-        for receivers in [
-          try(alert.action_group.automation_runbook_receivers, []),
-          try(alert.action_group.azure_function_receivers, []),
-          try(alert.action_group.logic_app_receivers, []),
-          try(alert.action_group.webhook_receivers, []),
-        ] : length(distinct([for receiver in receivers : receiver.name])) == length(receivers)
-      ]
-    ]))
-    error_message = "Automation runbook, Azure Function, Logic App and webhook receiver names must be unique within their receiver type in each action group, because their secrets are matched by name."
+    condition = alltrue([
+      for names in [
+        for alert in values(var.service_health_alerts) : alert.action_group == null ? [] : alert.action_group.existing_action_group != null ? [] : flatten([
+          for receivers in [
+            alert.action_group.arm_role_receivers,
+            alert.action_group.automation_runbook_receivers,
+            alert.action_group.azure_app_push_receivers,
+            alert.action_group.azure_function_receivers,
+            alert.action_group.email_receivers,
+            alert.action_group.event_hub_receivers,
+            alert.action_group.itsm_receivers,
+            alert.action_group.logic_app_receivers,
+            alert.action_group.sms_receivers,
+            alert.action_group.voice_receivers,
+            alert.action_group.webhook_receivers,
+          ] : [for receiver in receivers : receiver.name]
+        ])
+      ] : length(distinct(names)) == length(names)
+    ])
+    error_message = "Receiver names must be unique across all receiver types of an action group."
   }
   validation {
     condition = alltrue(flatten([
@@ -507,7 +516,7 @@ variable "shared_action_groups" {
   description = <<DESCRIPTION
 A map of action groups created once by the module and notified by several alerts. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time. An alert can be notified by its own `action_group` and by any number of shared action groups.
 
-- `name` - (Optional) The name of the action group. Defaults to `ag-<map key>`.
+- `name` - (Optional) The name of the action group. Defaults to `ag-<map key>`. The same naming rules as `action_group.name` in `service_health_alerts` apply.
 - `group_short_name` - (Optional) The short name used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the name.
 - `enabled` - (Optional) Whether the action group is enabled. Defaults to `true`.
 - `service_health_alert_keys` - (Optional) The `service_health_alerts` keys of the alerts that notify this action group. Defaults to `null`, which means every alert.
@@ -530,17 +539,26 @@ DESCRIPTION
     error_message = "Each shared action group `group_short_name` must be at most 12 characters."
   }
   validation {
-    condition = alltrue(flatten([
-      for action_group in values(var.shared_action_groups) : [
-        for receivers in [
-          action_group.automation_runbook_receivers,
-          action_group.azure_function_receivers,
-          action_group.logic_app_receivers,
-          action_group.webhook_receivers,
-        ] : length(distinct([for receiver in receivers : receiver.name])) == length(receivers)
-      ]
-    ]))
-    error_message = "Automation runbook, Azure Function, Logic App and webhook receiver names must be unique within their receiver type in each shared action group, because their secrets are matched by name."
+    condition = alltrue([
+      for names in [
+        for action_group in values(var.shared_action_groups) : flatten([
+          for receivers in [
+            action_group.arm_role_receivers,
+            action_group.automation_runbook_receivers,
+            action_group.azure_app_push_receivers,
+            action_group.azure_function_receivers,
+            action_group.email_receivers,
+            action_group.event_hub_receivers,
+            action_group.itsm_receivers,
+            action_group.logic_app_receivers,
+            action_group.sms_receivers,
+            action_group.voice_receivers,
+            action_group.webhook_receivers,
+          ] : [for receiver in receivers : receiver.name]
+        ])
+      ] : length(distinct(names)) == length(names)
+    ])
+    error_message = "Receiver names must be unique across all receiver types of a shared action group."
   }
   validation {
     condition = alltrue(flatten([

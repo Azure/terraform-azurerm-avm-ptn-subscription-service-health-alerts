@@ -52,6 +52,14 @@ resource "azapi_resource" "action_group" {
 
   lifecycle {
     precondition {
+      condition     = local.action_group_name_valid[each.value]
+      error_message = "The action group name `${local.action_group_configs[each.value].name}` of `service_health_alerts[\"${each.key}\"].action_group` must be 1-260 characters, must not contain `:<>+/&%\\?|` or control characters, and must not end with a space or period."
+    }
+    precondition {
+      condition     = local.action_group_name_unique[each.value]
+      error_message = "The action group name `${local.action_group_configs[each.value].name}` of `service_health_alerts[\"${each.key}\"].action_group` is used by more than one action group created by this module. Names are compared case-insensitively."
+    }
+    precondition {
       condition     = local.action_group_receiver_secrets_valid[each.value]
       error_message = "`service_health_alert_receiver_secrets[\"${each.key}\"]` must contain exactly one URL per Azure Function, Logic App and webhook receiver of the action group, keyed by receiver name, and may only contain automation runbook URIs for existing automation runbook receivers."
     }
@@ -84,6 +92,14 @@ resource "azapi_resource" "shared_action_group" {
   }
 
   lifecycle {
+    precondition {
+      condition     = local.action_group_name_valid["shared/${each.key}"]
+      error_message = "The action group name `${local.action_group_configs["shared/${each.key}"].name}` of `shared_action_groups[\"${each.key}\"]` must be 1-260 characters, must not contain `:<>+/&%\\?|` or control characters, and must not end with a space or period."
+    }
+    precondition {
+      condition     = local.action_group_name_unique["shared/${each.key}"]
+      error_message = "The action group name `${local.action_group_configs["shared/${each.key}"].name}` of `shared_action_groups[\"${each.key}\"]` is used by more than one action group created by this module. Names are compared case-insensitively."
+    }
     precondition {
       condition     = local.action_group_receiver_secrets_valid["shared/${each.key}"]
       error_message = "`shared_action_group_receiver_secrets[\"${each.key}\"]` must contain exactly one URL per Azure Function, Logic App and webhook receiver of the action group, keyed by receiver name, and may only contain automation runbook URIs for existing automation runbook receivers."

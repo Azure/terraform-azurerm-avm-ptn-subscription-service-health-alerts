@@ -1116,3 +1116,93 @@ run "shared_action_group_secret_for_unknown_group" {
 
   expect_failures = [var.shared_action_group_receiver_secrets]
 }
+
+run "resource_group_name_trailing_period" {
+  command = plan
+
+  variables {
+    resource_group_name = "rg-invalid."
+  }
+
+  expect_failures = [var.resource_group_name]
+}
+
+run "alert_name_trailing_period" {
+  command = plan
+
+  variables {
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        name                 = "incident-alert."
+      }
+    }
+  }
+
+  expect_failures = [var.service_health_alerts]
+}
+
+run "receiver_names_duplicated_across_types" {
+  command = plan
+
+  variables {
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          email_receivers = [{ name = "ops", email_address = "ops@example.com" }]
+          sms_receivers   = [{ name = "ops", country_code = "1", phone_number = "5555550100" }]
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.service_health_alerts]
+}
+
+run "shared_receiver_names_duplicated_across_types" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      ops = {
+        email_receivers = [{ name = "ops", email_address = "ops@example.com" }]
+        voice_receivers = [{ name = "ops", country_code = "1", phone_number = "5555550100" }]
+      }
+    }
+  }
+
+  expect_failures = [var.shared_action_groups]
+}
+
+run "action_group_names_collide_case_insensitively" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      ops = {}
+    }
+    service_health_alerts = {
+      incident = {
+        service_health_alert = "Service Health Incident"
+        action_group = {
+          name = "AG-OPS"
+        }
+      }
+    }
+  }
+
+  expect_failures = [azapi_resource.action_group, azapi_resource.shared_action_group]
+}
+
+run "action_group_name_invalid" {
+  command = plan
+
+  variables {
+    shared_action_groups = {
+      "ops." = {}
+    }
+  }
+
+  expect_failures = [azapi_resource.shared_action_group]
+}

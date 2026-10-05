@@ -119,6 +119,12 @@ locals {
       }
     }
   )
+  action_group_name_unique = {
+    for key, config in local.action_group_configs : key => length([for other in values(local.action_group_configs) : other.name if lower(other.name) == lower(config.name)]) == 1
+  }
+  action_group_name_valid = {
+    for key, config in local.action_group_configs : key => can(regex("^[^:<>+/&%?|\\\\[:cntrl:]]{1,260}$", config.name)) && !endswith(config.name, " ") && !endswith(config.name, ".")
+  }
   action_group_receiver_names = {
     for key, config in local.action_group_configs : key => {
       automationRunbookReceivers = toset([for receiver in config.receivers.automation_runbook_receivers : receiver.name])
