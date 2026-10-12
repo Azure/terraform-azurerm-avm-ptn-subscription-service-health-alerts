@@ -56,68 +56,32 @@ module "action_group" {
   depends_on = [terraform_data.validation]
 }
 
-resource "azapi_resource" "service_health_alert" {
+module "service_health_alert" {
+  source   = "git::https://github.com/Azure/terraform-azurerm-avm-res-insights-activitylogalert.git?ref=c9be41025de750d2442245a1b8cf149a2c6ca49c"
   for_each = var.service_health_alerts
 
-  location  = "global"
+  condition = {
+    all_of = local.service_health_alert_conditions[each.value.service_health_alert]
+  }
+  location  = var.location
   name      = local.service_health_alert_names[each.key]
   parent_id = var.parent_id
-  type      = var.resource_types.insights_activity_log_alerts
-  body = {
-    properties = {
-      scopes = [local.subscription_resource_id]
-      condition = {
-        allOf = local.service_health_alert_conditions[each.value.service_health_alert]
-      }
-      actions = {
-        actionGroups = [
-          for action_group_resource_id in local.alert_action_group_resource_ids[each.key] : {
-            actionGroupId = action_group_resource_id
-          }
-        ]
-      }
-      enabled     = each.value.enabled
-      description = coalesce(each.value.description, local.service_health_alert_descriptions[each.value.service_health_alert])
+  scopes    = [local.subscription_resource_id]
+  action_groups = {
+    for index, resource_id in local.alert_action_group_resource_ids[each.key] : tostring(index) => {
+      action_group_id = resource_id
     }
   }
-  ignore_body_changes    = length(var.ignore_body_changes.insights_activity_log_alerts) > 0 ? var.ignore_body_changes.insights_activity_log_alerts : null
-  response_export_values = []
-  retry                  = var.retry
-  tags                   = var.tags
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
+  description         = coalesce(each.value.description, local.service_health_alert_descriptions[each.value.service_health_alert])
+  enable_telemetry    = var.enable_telemetry
+  enabled             = each.value.enabled
+  ignore_body_changes = var.ignore_body_changes.insights_activity_log_alerts
+  lock                = var.lock
+  resource_location   = "global"
+  resource_types      = var.resource_types.insights_activity_log_alerts
+  retry               = var.retry
+  tags                = var.tags
+  timeouts            = var.timeouts
 
   depends_on = [terraform_data.validation]
-}
-
-resource "azapi_resource" "lock_service_health_alert" {
-  for_each = var.lock == null ? toset([]) : toset(keys(var.service_health_alerts))
-
-  name                   = local.lock.name
-  parent_id              = azapi_resource.service_health_alert[each.key].id
-  type                   = var.resource_types.authorization_locks
-  body                   = local.lock.body
-  ignore_body_changes    = length(var.ignore_body_changes.authorization_locks) > 0 ? var.ignore_body_changes.authorization_locks : null
-  response_export_values = []
-  retry                  = var.retry
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
 }

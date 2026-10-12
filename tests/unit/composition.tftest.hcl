@@ -48,13 +48,17 @@ run "real_module_composition_with_mocked_providers" {
       insights_action_groups = {
         insights_action_groups = "Microsoft.Insights/actionGroups@2023-01-01"
       }
-      insights_activity_log_alerts = "Microsoft.Insights/activityLogAlerts@2020-10-01"
+      insights_activity_log_alerts = {
+        insights_activity_log_alerts = "Microsoft.Insights/activityLogAlerts@2020-10-01"
+      }
     }
     ignore_body_changes = {
       insights_action_groups = {
         insights_action_groups = ["properties.enabled"]
       }
-      insights_activity_log_alerts = ["properties.description"]
+      insights_activity_log_alerts = {
+        insights_activity_log_alerts = ["properties.description"]
+      }
     }
     service_health_alerts = {
       incident = {

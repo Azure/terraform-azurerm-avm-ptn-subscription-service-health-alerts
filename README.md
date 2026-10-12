@@ -16,7 +16,7 @@ By default, one alert of each type is created, without notifications.
 
 Supply the existing resource group's ARM resource ID through `parent_id`. The module monitors the subscription containing that resource group; it never creates, deletes, or locks the resource group. The examples create their own resource groups outside the module. Activity log alerts and action groups are global resources, so `location` supplies the telemetry region.
 
-The module uses the `Azure/azapi` provider and behaves like the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
+The pattern composes the AVM activity log alert and action group resource modules, which use `Azure/azapi`. It follows the alert conditions of the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
 
 ## Notifications
 
@@ -107,8 +107,6 @@ The following requirements are needed by this module:
 
 The following resources are used by this module:
 
-- [azapi_resource.lock_service_health_alert](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.service_health_alert](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [modtm_telemetry.telemetry](https://registry.terraform.io/providers/azure/modtm/latest/docs/resources/telemetry) (resource)
 - [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
 - [terraform_data.validation](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) (resource)
@@ -154,24 +152,29 @@ Paths use dot notation, for example `properties.enabled`. Individual list items 
 
 Supplying a non-empty value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument. Changes take effect only after an apply, because the value is held in provider-private state.
 
-- `authorization_locks` - Ignored body paths for the management locks created by this module.
 - `insights_action_groups` - Overrides passed to every action group resource module.
 - `insights_action_groups.insights_action_groups` - Ignored paths on action groups.
 - `insights_action_groups.authorization_locks` - Ignored paths on action group locks.
 - `insights_action_groups.authorization_role_assignments` - Ignored paths on action group role assignments.
-- `insights_activity_log_alerts` - Ignored body paths for the service health activity log alerts.
+- `insights_activity_log_alerts` - Overrides passed to every activity log alert resource module.
+- `insights_activity_log_alerts.insights_activity_log_alerts` - Ignored paths on activity log alerts.
+- `insights_activity_log_alerts.authorization_locks` - Ignored paths on alert locks.
+- `insights_activity_log_alerts.authorization_role_assignments` - Ignored paths on alert role assignments.
 
 Type:
 
 ```hcl
 object({
-    authorization_locks = optional(list(string), [])
     insights_action_groups = optional(object({
       insights_action_groups         = optional(list(string), [])
       authorization_locks            = optional(list(string), [])
       authorization_role_assignments = optional(list(string), [])
     }), {})
-    insights_activity_log_alerts = optional(list(string), [])
+    insights_activity_log_alerts = optional(object({
+      insights_activity_log_alerts   = optional(list(string), [])
+      authorization_locks            = optional(list(string), [])
+      authorization_role_assignments = optional(list(string), [])
+    }), {})
   })
 ```
 
@@ -199,26 +202,31 @@ Default: `null`
 
 ### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
 
-Description: Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
+Description: Override the AzAPI `<provider>/<resource>@<api-version>` strings passed to the resource modules. Each resource module owns its tested API-version defaults; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
 
-- `authorization_locks` - Management locks applied when `lock` is set.
 - `insights_action_groups` - Overrides passed to every action group resource module; defaults are owned by that module.
 - `insights_action_groups.insights_action_groups` - Action group API version.
 - `insights_action_groups.authorization_locks` - Action group lock API version.
 - `insights_action_groups.authorization_role_assignments` - Action group role assignment API version.
-- `insights_activity_log_alerts` - Service health and resource health activity log alerts.
+- `insights_activity_log_alerts` - Overrides passed to every activity log alert resource module; defaults are owned by that module.
+- `insights_activity_log_alerts.insights_activity_log_alerts` - Activity log alert API version.
+- `insights_activity_log_alerts.authorization_locks` - Alert lock API version.
+- `insights_activity_log_alerts.authorization_role_assignments` - Alert role assignment API version.
 
 Type:
 
 ```hcl
 object({
-    authorization_locks = optional(string, "Microsoft.Authorization/locks@2020-05-01")
     insights_action_groups = optional(object({
       insights_action_groups         = optional(string)
       authorization_locks            = optional(string)
       authorization_role_assignments = optional(string)
     }), {})
-    insights_activity_log_alerts = optional(string, "Microsoft.Insights/activityLogAlerts@2026-01-01")
+    insights_activity_log_alerts = optional(object({
+      insights_activity_log_alerts   = optional(string)
+      authorization_locks            = optional(string)
+      authorization_role_assignments = optional(string)
+    }), {})
   })
 ```
 
@@ -613,6 +621,12 @@ The following Modules are called:
 Source: git::https://github.com/Azure/terraform-azurerm-avm-res-insights-actiongroup.git
 
 Version: 3c72ad53fd37d860705030b718669dfd495a5269
+
+### <a name="module_service_health_alert"></a> [service\_health\_alert](#module\_service\_health\_alert)
+
+Source: git::https://github.com/Azure/terraform-azurerm-avm-res-insights-activitylogalert.git
+
+Version: c9be41025de750d2442245a1b8cf149a2c6ca49c
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection

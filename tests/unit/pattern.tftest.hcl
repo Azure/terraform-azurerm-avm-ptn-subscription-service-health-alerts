@@ -60,10 +60,10 @@ run "defaults" {
     error_message = "Each alert must retain its intended category and incident type."
   }
   assert {
-    condition = local.service_health_alert_conditions["Resource Health Unhealthy"][1].anyOf == [
+    condition = local.service_health_alert_conditions["Resource Health Unhealthy"][1].any_of == [
       { field = "properties.cause", equals = "PlatformInitiated" },
       { field = "properties.cause", equals = "UserInitiated" },
-      ] && local.service_health_alert_conditions["Resource Health Unhealthy"][2].anyOf == [
+      ] && local.service_health_alert_conditions["Resource Health Unhealthy"][2].any_of == [
       { field = "properties.currentHealthStatus", equals = "Degraded" },
       { field = "properties.currentHealthStatus", equals = "Unavailable" },
     ]

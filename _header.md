@@ -14,7 +14,7 @@ By default, one alert of each type is created, without notifications.
 
 Supply the existing resource group's ARM resource ID through `parent_id`. The module monitors the subscription containing that resource group; it never creates, deletes, or locks the resource group. The examples create their own resource groups outside the module. Activity log alerts and action groups are global resources, so `location` supplies the telemetry region.
 
-The module uses the `Azure/azapi` provider and behaves like the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
+The pattern composes the AVM activity log alert and action group resource modules, which use `Azure/azapi`. It follows the alert conditions of the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
 
 ## Notifications
 

@@ -5,7 +5,7 @@ output "action_group_resource_ids" {
 
 output "service_health_alert_resource_ids" {
   description = "A map of the resource IDs of the service health activity log alerts, keyed by the `service_health_alerts` map key."
-  value       = { for key, alert in azapi_resource.service_health_alert : key => alert.id }
+  value       = { for key, alert in module.service_health_alert : key => alert.resource_id }
 }
 
 output "shared_action_group_resource_ids" {

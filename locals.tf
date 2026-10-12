@@ -118,15 +118,6 @@ locals {
       ],
     )
   }
-  lock = var.lock == null ? null : {
-    name = coalesce(var.lock.name, "lock-${var.lock.kind}")
-    body = {
-      properties = {
-        level = var.lock.kind
-        notes = coalesce(var.lock.notes, var.lock.kind == "CanNotDelete" ? "Cannot delete the resource or its child resources." : "Cannot delete or modify the resource or its child resources.")
-      }
-    }
-  }
   service_health_alert_conditions = {
     "Resource Health Unhealthy" = [
       {
@@ -134,7 +125,7 @@ locals {
         equals = "ResourceHealth"
       },
       {
-        anyOf = [
+        any_of = [
           {
             field  = "properties.cause"
             equals = "PlatformInitiated"
@@ -146,7 +137,7 @@ locals {
         ]
       },
       {
-        anyOf = [
+        any_of = [
           {
             field  = "properties.currentHealthStatus"
             equals = "Degraded"

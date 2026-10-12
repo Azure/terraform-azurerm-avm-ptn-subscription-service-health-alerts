@@ -28,13 +28,16 @@ DESCRIPTION
 
 variable "ignore_body_changes" {
   type = object({
-    authorization_locks = optional(list(string), [])
     insights_action_groups = optional(object({
       insights_action_groups         = optional(list(string), [])
       authorization_locks            = optional(list(string), [])
       authorization_role_assignments = optional(list(string), [])
     }), {})
-    insights_activity_log_alerts = optional(list(string), [])
+    insights_activity_log_alerts = optional(object({
+      insights_activity_log_alerts   = optional(list(string), [])
+      authorization_locks            = optional(list(string), [])
+      authorization_role_assignments = optional(list(string), [])
+    }), {})
   })
   default     = {}
   description = <<DESCRIPTION
@@ -44,18 +47,20 @@ Paths use dot notation, for example `properties.enabled`. Individual list items 
 
 Supplying a non-empty value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument. Changes take effect only after an apply, because the value is held in provider-private state.
 
-- `authorization_locks` - Ignored body paths for the management locks created by this module.
 - `insights_action_groups` - Overrides passed to every action group resource module.
 - `insights_action_groups.insights_action_groups` - Ignored paths on action groups.
 - `insights_action_groups.authorization_locks` - Ignored paths on action group locks.
 - `insights_action_groups.authorization_role_assignments` - Ignored paths on action group role assignments.
-- `insights_activity_log_alerts` - Ignored body paths for the service health activity log alerts.
+- `insights_activity_log_alerts` - Overrides passed to every activity log alert resource module.
+- `insights_activity_log_alerts.insights_activity_log_alerts` - Ignored paths on activity log alerts.
+- `insights_activity_log_alerts.authorization_locks` - Ignored paths on alert locks.
+- `insights_activity_log_alerts.authorization_role_assignments` - Ignored paths on alert role assignments.
 DESCRIPTION
   nullable    = false
 
   validation {
     condition = alltrue(flatten([
-      for paths in concat([var.ignore_body_changes.authorization_locks, var.ignore_body_changes.insights_activity_log_alerts], values(var.ignore_body_changes.insights_action_groups)) : [
+      for paths in concat(values(var.ignore_body_changes.insights_activity_log_alerts), values(var.ignore_body_changes.insights_action_groups)) : [
         for path in paths : trimspace(path) != ""
       ]
     ]))
@@ -86,24 +91,29 @@ DESCRIPTION
 
 variable "resource_types" {
   type = object({
-    authorization_locks = optional(string, "Microsoft.Authorization/locks@2020-05-01")
     insights_action_groups = optional(object({
       insights_action_groups         = optional(string)
       authorization_locks            = optional(string)
       authorization_role_assignments = optional(string)
     }), {})
-    insights_activity_log_alerts = optional(string, "Microsoft.Insights/activityLogAlerts@2026-01-01")
+    insights_activity_log_alerts = optional(object({
+      insights_activity_log_alerts   = optional(string)
+      authorization_locks            = optional(string)
+      authorization_role_assignments = optional(string)
+    }), {})
   })
   default     = {}
   description = <<DESCRIPTION
-Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
+Override the AzAPI `<provider>/<resource>@<api-version>` strings passed to the resource modules. Each resource module owns its tested API-version defaults; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
 
-- `authorization_locks` - Management locks applied when `lock` is set.
 - `insights_action_groups` - Overrides passed to every action group resource module; defaults are owned by that module.
 - `insights_action_groups.insights_action_groups` - Action group API version.
 - `insights_action_groups.authorization_locks` - Action group lock API version.
 - `insights_action_groups.authorization_role_assignments` - Action group role assignment API version.
-- `insights_activity_log_alerts` - Service health and resource health activity log alerts.
+- `insights_activity_log_alerts` - Overrides passed to every activity log alert resource module; defaults are owned by that module.
+- `insights_activity_log_alerts.insights_activity_log_alerts` - Activity log alert API version.
+- `insights_activity_log_alerts.authorization_locks` - Alert lock API version.
+- `insights_activity_log_alerts.authorization_role_assignments` - Alert role assignment API version.
 DESCRIPTION
   nullable    = false
 }
