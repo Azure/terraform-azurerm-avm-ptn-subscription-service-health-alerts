@@ -618,15 +618,15 @@ The following Modules are called:
 
 ### <a name="module_action_group"></a> [action\_group](#module\_action\_group)
 
-Source: git::https://github.com/Azure/terraform-azurerm-avm-res-insights-actiongroup.git
+Source: Azure/avm-res-insights-actiongroup/azurerm
 
-Version: 3c72ad53fd37d860705030b718669dfd495a5269
+Version: 0.1.0
 
 ### <a name="module_service_health_alert"></a> [service\_health\_alert](#module\_service\_health\_alert)
 
-Source: git::https://github.com/Azure/terraform-azurerm-avm-res-insights-activitylogalert.git
+Source: Azure/avm-res-insights-activitylogalert/azurerm
 
-Version: 5aed897f26db9beb43e3cb7f81718113e2865f21
+Version: 0.1.0
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection

@@ -26,7 +26,8 @@ resource "terraform_data" "validation" {
 }
 
 module "action_group" {
-  source   = "git::https://github.com/Azure/terraform-azurerm-avm-res-insights-actiongroup.git?ref=3c72ad53fd37d860705030b718669dfd495a5269"
+  source   = "Azure/avm-res-insights-actiongroup/azurerm"
+  version  = "0.1.0"
   for_each = local.action_group_configs
 
   location                     = "global"
@@ -57,7 +58,8 @@ module "action_group" {
 }
 
 module "service_health_alert" {
-  source   = "git::https://github.com/Azure/terraform-azurerm-avm-res-insights-activitylogalert.git?ref=5aed897f26db9beb43e3cb7f81718113e2865f21"
+  source   = "Azure/avm-res-insights-activitylogalert/azurerm"
+  version  = "0.1.0"
   for_each = var.service_health_alerts
 
   condition = {
