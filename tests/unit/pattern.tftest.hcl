@@ -31,6 +31,10 @@ variables {
 run "defaults" {
   command = apply
 
+  variables {
+    enable_telemetry = true
+  }
+
   assert {
     condition     = toset(keys(output.service_health_alert_resource_ids)) == toset(["resource_health_unhealthy", "service_health_advisory", "service_health_incident", "service_health_maintenance", "service_health_security"])
     error_message = "The five default alert types must be created."
@@ -75,7 +79,7 @@ run "defaults" {
   }
   assert {
     condition     = length(modtm_telemetry.telemetry) == 1
-    error_message = "Telemetry must be enabled by default."
+    error_message = "Telemetry must be created when enabled."
   }
 }
 

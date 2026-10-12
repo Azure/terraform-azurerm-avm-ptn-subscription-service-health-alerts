@@ -626,7 +626,7 @@ Version: 3c72ad53fd37d860705030b718669dfd495a5269
 
 Source: git::https://github.com/Azure/terraform-azurerm-avm-res-insights-activitylogalert.git
 
-Version: c9be41025de750d2442245a1b8cf149a2c6ca49c
+Version: 5aed897f26db9beb43e3cb7f81718113e2865f21
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection
