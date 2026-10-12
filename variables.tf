@@ -1,7 +1,18 @@
 variable "location" {
   type        = string
-  description = "Azure region used for the resource group created by this module and for the module telemetry. Activity log alerts and action groups are always deployed to the `global` location."
+  description = "Azure region used for module telemetry. Activity log alerts and action groups are deployed to the `global` location."
   nullable    = false
+}
+
+variable "parent_id" {
+  type        = string
+  description = "The resource ID of the existing resource group that will hold the alerts and action groups. The module monitors the subscription containing this resource group and does not create or lock the resource group."
+  nullable    = false
+
+  validation {
+    condition     = can(provider::azapi::parse_resource_id("Microsoft.Resources/resourceGroups", var.parent_id))
+    error_message = "`parent_id` must be a valid Azure resource group resource ID."
+  }
 }
 
 variable "enable_telemetry" {
@@ -17,10 +28,13 @@ DESCRIPTION
 
 variable "ignore_body_changes" {
   type = object({
-    authorization_locks          = optional(list(string), [])
-    insights_action_groups       = optional(list(string), [])
+    authorization_locks = optional(list(string), [])
+    insights_action_groups = optional(object({
+      insights_action_groups         = optional(list(string), [])
+      authorization_locks            = optional(list(string), [])
+      authorization_role_assignments = optional(list(string), [])
+    }), {})
     insights_activity_log_alerts = optional(list(string), [])
-    resources_resource_groups    = optional(list(string), [])
   })
   default     = {}
   description = <<DESCRIPTION
@@ -31,15 +45,17 @@ Paths use dot notation, for example `properties.enabled`. Individual list items 
 Supplying a non-empty value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument. Changes take effect only after an apply, because the value is held in provider-private state.
 
 - `authorization_locks` - Ignored body paths for the management locks created by this module.
-- `insights_action_groups` - Ignored body paths for the action groups created by this module.
+- `insights_action_groups` - Overrides passed to every action group resource module.
+- `insights_action_groups.insights_action_groups` - Ignored paths on action groups.
+- `insights_action_groups.authorization_locks` - Ignored paths on action group locks.
+- `insights_action_groups.authorization_role_assignments` - Ignored paths on action group role assignments.
 - `insights_activity_log_alerts` - Ignored body paths for the service health activity log alerts.
-- `resources_resource_groups` - Ignored body paths for the resource group created by this module.
 DESCRIPTION
   nullable    = false
 
   validation {
     condition = alltrue(flatten([
-      for paths in values(var.ignore_body_changes) : [
+      for paths in concat([var.ignore_body_changes.authorization_locks, var.ignore_body_changes.insights_activity_log_alerts], values(var.ignore_body_changes.insights_action_groups)) : [
         for path in paths : trimspace(path) != ""
       ]
     ]))
@@ -68,39 +84,26 @@ DESCRIPTION
   }
 }
 
-variable "resource_group_creation_enabled" {
-  type        = bool
-  default     = true
-  description = "Whether the module creates the resource group that holds the alerts and action groups. Set to `false` to deploy into an existing resource group named by `resource_group_name` in the target subscription."
-  nullable    = false
-}
-
-variable "resource_group_name" {
-  type        = string
-  default     = null
-  description = "The name of the resource group that holds the service health alerts and action groups. When `null`, the name defaults to `rg-asha-<subscription ID>`."
-
-  validation {
-    condition     = var.resource_group_name == null || (can(regex("^[-\\w\\._\\(\\)]{1,90}$", var.resource_group_name)) && !endswith(var.resource_group_name, "."))
-    error_message = "`resource_group_name` must be 1-90 characters, contain only alphanumerics, underscores, parentheses, hyphens and periods, and not end with a period."
-  }
-}
-
 variable "resource_types" {
   type = object({
-    authorization_locks          = optional(string, "Microsoft.Authorization/locks@2020-05-01")
-    insights_action_groups       = optional(string, "Microsoft.Insights/actionGroups@2023-01-01")
+    authorization_locks = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+    insights_action_groups = optional(object({
+      insights_action_groups         = optional(string)
+      authorization_locks            = optional(string)
+      authorization_role_assignments = optional(string)
+    }), {})
     insights_activity_log_alerts = optional(string, "Microsoft.Insights/activityLogAlerts@2026-01-01")
-    resources_resource_groups    = optional(string, "Microsoft.Resources/resourceGroups@2025-04-01")
   })
   default     = {}
   description = <<DESCRIPTION
 Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
 
 - `authorization_locks` - Management locks applied when `lock` is set.
-- `insights_action_groups` - Action groups created for the alerts.
+- `insights_action_groups` - Overrides passed to every action group resource module; defaults are owned by that module.
+- `insights_action_groups.insights_action_groups` - Action group API version.
+- `insights_action_groups.authorization_locks` - Action group lock API version.
+- `insights_action_groups.authorization_role_assignments` - Action group role assignment API version.
 - `insights_activity_log_alerts` - Service health and resource health activity log alerts.
-- `resources_resource_groups` - Resource group created when `resource_group_creation_enabled` is `true`.
 DESCRIPTION
   nullable    = false
 }
@@ -134,7 +137,7 @@ variable "service_health_alert_receiver_secrets" {
   description = <<DESCRIPTION
 Secret URLs for the receivers of the action groups created by this module. The outer map key must match the `service_health_alerts` key of an alert whose action group is created by this module. Each inner map is keyed by the receiver `name` in the corresponding receiver list.
 
-The values are sent to Azure through the write-only `sensitive_body` argument of the AzAPI provider, so they are not shown in plan output and are not stored in Terraform state; only a hash of them is kept in provider-private state to detect changes. Supplying a non-empty value requires Terraform 1.11 or later.
+The values are passed to the action group resource module and sent through AzAPI's write-only `sensitive_body`. They are hidden in plan output and omitted from Terraform state; only hashes are retained to detect changes. Saved plan files still contain input variable values. Supplying a non-empty value requires Terraform 1.11 or later.
 
 - `automation_runbook_receiver_service_uris` - (Optional) The Automation webhook URI for each automation runbook receiver, keyed by receiver name.
 - `azure_function_receiver_http_trigger_urls` - (Optional) The HTTP trigger URL for each Azure Function receiver, keyed by receiver name. Required for every Azure Function receiver.
@@ -269,7 +272,7 @@ A map of service health alerts to create as activity log alerts scoped to the ta
 - `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead. Receiver names must be unique across all receiver types of the action group. An alert can notify at most five action groups in total, counting its own and the shared action groups that target it.
   - `existing_action_group` - (Optional) Use an existing action group instead of creating one. When set, all other `action_group` attributes are ignored and not validated.
     - `resource_id` - (Required) The resource ID of the existing action group.
-  - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`. Action group names must be unique, case-insensitively, across all action groups created by the module, 1-260 characters, must not contain `:<>+/&%\?|` or control characters, and must not end with a space or period.
+  - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`. Action group names must be unique, case-insensitively, across all action groups created by the module, 1-260 characters, must not contain `:<>*+/&%\?|` or control characters, and must not end with a space or period.
   - `group_short_name` - (Optional) The short name of the action group, used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the alert name.
   - `enabled` - (Optional) Whether the action group is enabled. Defaults to `true`.
   - `arm_role_receivers` - (Optional) A list of Azure Resource Manager role receivers.
@@ -322,7 +325,7 @@ A map of service health alerts to create as activity log alerts scoped to the ta
     - `phone_number` - (Required) The phone number.
   - `webhook_receivers` - (Optional) A list of webhook receivers. The service URI is supplied through `service_health_alert_receiver_secrets`.
     - `name` - (Required) The name of the receiver.
-    - `identifier_uri` - (Optional) The identifier URI for Microsoft Entra authentication.
+    - `identifier_uri` - (Optional) The identifier URI for Microsoft Entra authentication. Required and non-blank when `use_aad_auth` is `true`.
     - `object_id` - (Optional) The object ID of the webhook application for Microsoft Entra authentication. Required when `use_aad_auth` is `true`.
     - `tenant_id` - (Optional) The tenant ID for Microsoft Entra authentication.
     - `use_aad_auth` - (Optional) Whether to use Microsoft Entra authentication. Defaults to `false`.
@@ -391,10 +394,10 @@ DESCRIPTION
     condition = alltrue(flatten([
       for alert in values(var.service_health_alerts) : [
         for receiver in alert.action_group == null ? [] : alert.action_group.existing_action_group != null ? [] : alert.action_group.webhook_receivers :
-        receiver.use_aad_auth ? receiver.object_id != null : true
+        receiver.use_aad_auth ? receiver.object_id != null && try(trimspace(receiver.identifier_uri), "") != "" : true
       ]
     ]))
-    error_message = "Each webhook receiver with `use_aad_auth = true` must set `object_id`."
+    error_message = "Each webhook receiver with `use_aad_auth = true` must set `object_id` and a non-blank `identifier_uri`."
   }
   validation {
     condition = alltrue(flatten([
@@ -573,10 +576,10 @@ DESCRIPTION
     condition = alltrue(flatten([
       for action_group in values(var.shared_action_groups) : [
         for receiver in action_group.webhook_receivers :
-        receiver.use_aad_auth ? receiver.object_id != null : true
+        receiver.use_aad_auth ? receiver.object_id != null && try(trimspace(receiver.identifier_uri), "") != "" : true
       ]
     ]))
-    error_message = "Each webhook receiver with `use_aad_auth = true` must set `object_id`."
+    error_message = "Each webhook receiver with `use_aad_auth = true` must set `object_id` and a non-blank `identifier_uri`."
   }
   validation {
     condition = alltrue(flatten([
@@ -604,17 +607,6 @@ DESCRIPTION
       ]
     ]))
     error_message = "Each Logic App receiver `logic_app_resource_id` must be a valid Logic App resource ID."
-  }
-}
-
-variable "subscription_id" {
-  type        = string
-  default     = null
-  description = "The ID of the subscription to monitor and deploy the alerts into. When `null`, the subscription of the current AzAPI provider context is used."
-
-  validation {
-    condition     = var.subscription_id == null || can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.subscription_id))
-    error_message = "`subscription_id` must be a subscription ID in GUID format."
   }
 }
 

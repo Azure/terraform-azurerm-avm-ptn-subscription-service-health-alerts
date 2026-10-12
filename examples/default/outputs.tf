@@ -1,6 +1,6 @@
 output "resource_group_resource_id" {
   description = "The resource ID of the resource group that holds the alerts."
-  value       = module.test.resource_group_resource_id
+  value       = azapi_resource.resource_group.id
 }
 
 output "service_health_alert_resource_ids" {

@@ -4,14 +4,14 @@
 
 This deploys the module into an existing resource group and exercises its optional inputs:
 
-- `resource_group_creation_enabled = false` with a resource group and an action group created by the example itself.
+- An existing resource group supplied through `parent_id`, with that resource group and an existing action group created by the example itself.
 - A subset of alert types with custom names, descriptions and a disabled resource health alert.
 - A dedicated action group for the incident alert, with email and webhook receivers. The webhook service URI is passed through the sensitive `service_health_alert_receiver_secrets` variable.
 - A shared action group with two email receivers, notified by the incident, advisory and security alerts.
 - An existing action group, created by the example, notified by the maintenance alert.
 - A `CanNotDelete` lock on every alert and on both action groups created by the module, tags, `retry` and `timeouts`.
 
-This example requires Terraform 1.11 or later because it supplies a receiver secret. The receivers use `example.com` addresses, which cannot receive mail. Replace them before using this configuration outside a test subscription.
+This example requires Terraform 1.11 or later because it supplies a receiver secret. All action groups are disabled, and the sample receivers use the reserved `.invalid` domain to avoid live notifications. Authenticate to a non-production subscription before running it.
 
 ```hcl
 provider "azapi" {}
@@ -42,14 +42,8 @@ resource "azapi_resource" "existing_action_group" {
   body = {
     properties = {
       groupShortName = "ashexisting"
-      enabled        = true
-      emailReceivers = [
-        {
-          name                 = "platform-team"
-          emailAddress         = "platform-team@example.com"
-          useCommonAlertSchema = true
-        }
-      ]
+      enabled        = false
+      emailReceivers = []
     }
   }
   response_export_values = []
@@ -59,12 +53,11 @@ module "test" {
   source = "../../"
 
   location         = var.location
+  parent_id        = azapi_resource.resource_group.id
   enable_telemetry = var.enable_telemetry
   lock = {
     kind = "CanNotDelete"
   }
-  resource_group_creation_enabled = false
-  resource_group_name             = azapi_resource.resource_group.name
   retry = {
     error_message_regex  = ["ScopeLocked"]
     interval_seconds     = 15
@@ -73,7 +66,7 @@ module "test" {
   service_health_alert_receiver_secrets = {
     incident = {
       webhook_receiver_service_uris = {
-        incident-webhook = sensitive("https://example.com/service-health")
+        incident-webhook = sensitive("https://example.invalid/service-health")
       }
     }
   }
@@ -84,10 +77,11 @@ module "test" {
       action_group = {
         name             = "ag-asha-incident-${random_string.suffix.result}"
         group_short_name = "ashincident"
+        enabled          = false
         email_receivers = [
           {
             name                    = "on-call"
-            email_address           = "on-call@example.com"
+            email_address           = "on-call@example.invalid"
             use_common_alert_schema = true
           }
         ]
@@ -122,21 +116,21 @@ module "test" {
     platform = {
       name                      = "ag-asha-platform-${random_string.suffix.result}"
       group_short_name          = "ashplatform"
+      enabled                   = false
       service_health_alert_keys = ["incident", "advisory", "security"]
       email_receivers = [
         {
           name          = "platform-team"
-          email_address = "platform-team@example.com"
+          email_address = "platform-team@example.invalid"
         },
         {
           name                    = "platform-lead"
-          email_address           = "platform-lead@example.com"
+          email_address           = "platform-lead@example.invalid"
           use_common_alert_schema = true
         }
       ]
     }
   }
-  subscription_id = data.azapi_client_config.current.subscription_id
   tags = {
     environment = "example"
     workload    = "service-health"
@@ -189,7 +183,7 @@ Default: `true`
 
 ### <a name="input_location"></a> [location](#input\_location)
 
-Description: Azure region for the resource group created by the module.
+Description: Azure region for the example's resource group and module telemetry.
 
 Type: `string`
 

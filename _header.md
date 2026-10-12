@@ -12,7 +12,7 @@ This pattern module deploys Azure Service Health alerting for a subscription. It
 
 By default, one alert of each type is created, without notifications.
 
-The alerts and action groups are placed in a resource group. By default the module creates `rg-asha-<subscription ID>` in `location`. Set `resource_group_creation_enabled = false` to use an existing resource group. Activity log alerts and action groups are global resources, so `location` only sets the resource group region and the telemetry region.
+Supply the existing resource group's ARM resource ID through `parent_id`. The module monitors the subscription containing that resource group; it never creates, deletes, or locks the resource group. The examples create their own resource groups outside the module. Activity log alerts and action groups are global resources, so `location` supplies the telemetry region.
 
 The module uses the `Azure/azapi` provider and behaves like the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
 
@@ -81,10 +81,9 @@ These values are sent through the write-only `sensitive_body` argument of the Az
 
 On the target subscription:
 
-- `Microsoft.Resources/subscriptions/resourceGroups/write` when the module creates the resource group.
 - `Microsoft.Insights/activityLogAlerts/*` and `Microsoft.Insights/actionGroups/*`, for example through the Monitoring Contributor or Contributor role.
 - `Microsoft.Authorization/locks/*` when `lock` is set, for example through the Owner or User Access Administrator role.
 
 ## Locks
 
-When `lock` is set, the module locks every alert and action group it creates, and the resource group when it creates it. An existing resource group or action group is not locked.
+When `lock` is set, the module locks every alert and action group it creates. The supplied resource group and existing action groups are not locked.

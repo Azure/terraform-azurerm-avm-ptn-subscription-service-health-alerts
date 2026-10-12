@@ -1,110 +1,59 @@
-data "azapi_client_config" "current" {}
-
-resource "azapi_resource" "resource_group" {
-  count = var.resource_group_creation_enabled ? 1 : 0
-
-  location               = var.location
-  name                   = local.resource_group_name
-  parent_id              = local.subscription_resource_id
-  type                   = var.resource_types.resources_resource_groups
-  body                   = {}
-  ignore_body_changes    = length(var.ignore_body_changes.resources_resource_groups) > 0 ? var.ignore_body_changes.resources_resource_groups : null
-  response_export_values = []
-  retry                  = var.retry
-  tags                   = var.tags
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
+resource "terraform_data" "validation" {
+  lifecycle {
+    precondition {
+      condition     = alltrue(values(local.action_group_name_valid))
+      error_message = "Action group names must be 1-260 characters, must not contain `:<>*+/&%\\?|` or control characters, and must not end with a space or period."
+    }
+    precondition {
+      condition     = alltrue(values(local.action_group_name_unique))
+      error_message = "Names must be unique, case-insensitively, across every dedicated and shared action group created by the module."
+    }
+    precondition {
+      condition     = alltrue(values(local.action_group_receiver_secrets_valid))
+      error_message = "Receiver secrets must provide exactly one URL for each Function, Logic App and webhook receiver, keyed by receiver name. Automation webhook URIs may only refer to configured runbook receivers."
+    }
+    precondition {
+      condition = alltrue([
+        for key, alert in var.service_health_alerts :
+        (alert.action_group == null ? 0 : 1) + length([
+          for shared in values(var.shared_action_groups) : shared
+          if shared.service_health_alert_keys == null ? true : contains(shared.service_health_alert_keys, key)
+        ]) <= 5
+      ])
+      error_message = "Each alert can notify at most five action groups, including its dedicated or existing group and the shared groups that target it."
     }
   }
 }
 
-resource "azapi_resource" "action_group" {
-  for_each = local.alert_action_groups
+module "action_group" {
+  source   = "git::https://github.com/Azure/terraform-azurerm-avm-res-insights-actiongroup.git?ref=3c72ad53fd37d860705030b718669dfd495a5269"
+  for_each = local.action_group_configs
 
-  location               = "global"
-  name                   = local.action_group_configs[each.value].name
-  parent_id              = local.resource_group_resource_id
-  type                   = var.resource_types.insights_action_groups
-  body                   = local.action_group_bodies[each.value]
-  ignore_body_changes    = length(var.ignore_body_changes.insights_action_groups) > 0 ? var.ignore_body_changes.insights_action_groups : null
-  response_export_values = []
-  retry                  = var.retry
-  sensitive_body         = lookup(local.action_group_sensitive_bodies, each.value, null)
-  tags                   = var.tags
+  location                     = "global"
+  name                         = each.value.name
+  parent_id                    = var.parent_id
+  short_name                   = each.value.group_short_name
+  arm_role_receivers           = local.action_group_receivers[each.key].arm_role_receivers
+  automation_runbook_receivers = local.action_group_receivers[each.key].automation_runbook_receivers
+  azure_app_push_receivers     = local.action_group_receivers[each.key].azure_app_push_receivers
+  azure_function_receivers     = local.action_group_receivers[each.key].azure_function_receivers
+  email_receivers              = local.action_group_receivers[each.key].email_receivers
+  enable_telemetry             = var.enable_telemetry
+  enabled                      = each.value.receivers.enabled
+  event_hub_receivers          = local.action_group_receivers[each.key].event_hub_receivers
+  ignore_body_changes          = var.ignore_body_changes.insights_action_groups
+  itsm_receivers               = local.action_group_receivers[each.key].itsm_receivers
+  lock                         = var.lock
+  logic_app_receivers          = local.action_group_receivers[each.key].logic_app_receivers
+  resource_types               = var.resource_types.insights_action_groups
+  retry                        = var.retry
+  sms_receivers                = local.action_group_receivers[each.key].sms_receivers
+  tags                         = var.tags
+  timeouts                     = var.timeouts
+  voice_receivers              = local.action_group_receivers[each.key].voice_receivers
+  webhook_receivers            = local.action_group_receivers[each.key].webhook_receivers
 
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
-
-  lifecycle {
-    precondition {
-      condition     = local.action_group_name_valid[each.value]
-      error_message = "The action group name `${local.action_group_configs[each.value].name}` of `service_health_alerts[\"${each.key}\"].action_group` must be 1-260 characters, must not contain `:<>+/&%\\?|` or control characters, and must not end with a space or period."
-    }
-    precondition {
-      condition     = local.action_group_name_unique[each.value]
-      error_message = "The action group name `${local.action_group_configs[each.value].name}` of `service_health_alerts[\"${each.key}\"].action_group` is used by more than one action group created by this module. Names are compared case-insensitively."
-    }
-    precondition {
-      condition     = local.action_group_receiver_secrets_valid[each.value]
-      error_message = "`service_health_alert_receiver_secrets[\"${each.key}\"]` must contain exactly one URL per Azure Function, Logic App and webhook receiver of the action group, keyed by receiver name, and may only contain automation runbook URIs for existing automation runbook receivers."
-    }
-  }
-}
-
-resource "azapi_resource" "shared_action_group" {
-  for_each = var.shared_action_groups
-
-  location               = "global"
-  name                   = local.action_group_configs["shared/${each.key}"].name
-  parent_id              = local.resource_group_resource_id
-  type                   = var.resource_types.insights_action_groups
-  body                   = local.action_group_bodies["shared/${each.key}"]
-  ignore_body_changes    = length(var.ignore_body_changes.insights_action_groups) > 0 ? var.ignore_body_changes.insights_action_groups : null
-  response_export_values = []
-  retry                  = var.retry
-  sensitive_body         = lookup(local.action_group_sensitive_bodies, "shared/${each.key}", null)
-  tags                   = var.tags
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
-
-  lifecycle {
-    precondition {
-      condition     = local.action_group_name_valid["shared/${each.key}"]
-      error_message = "The action group name `${local.action_group_configs["shared/${each.key}"].name}` of `shared_action_groups[\"${each.key}\"]` must be 1-260 characters, must not contain `:<>+/&%\\?|` or control characters, and must not end with a space or period."
-    }
-    precondition {
-      condition     = local.action_group_name_unique["shared/${each.key}"]
-      error_message = "The action group name `${local.action_group_configs["shared/${each.key}"].name}` of `shared_action_groups[\"${each.key}\"]` is used by more than one action group created by this module. Names are compared case-insensitively."
-    }
-    precondition {
-      condition     = local.action_group_receiver_secrets_valid["shared/${each.key}"]
-      error_message = "`shared_action_group_receiver_secrets[\"${each.key}\"]` must contain exactly one URL per Azure Function, Logic App and webhook receiver of the action group, keyed by receiver name, and may only contain automation runbook URIs for existing automation runbook receivers."
-    }
-  }
+  depends_on = [terraform_data.validation]
 }
 
 resource "azapi_resource" "service_health_alert" {
@@ -112,7 +61,7 @@ resource "azapi_resource" "service_health_alert" {
 
   location  = "global"
   name      = local.service_health_alert_names[each.key]
-  parent_id = local.resource_group_resource_id
+  parent_id = var.parent_id
   type      = var.resource_types.insights_activity_log_alerts
   body = {
     properties = {
@@ -147,58 +96,7 @@ resource "azapi_resource" "service_health_alert" {
     }
   }
 
-  lifecycle {
-    precondition {
-      condition     = length(local.alert_action_group_resource_ids[each.key]) <= 5
-      error_message = "The alert `service_health_alerts[\"${each.key}\"]` notifies ${length(local.alert_action_group_resource_ids[each.key])} action groups. An activity log alert supports at most five, counting its own action group and the shared action groups that target it."
-    }
-  }
-}
-
-resource "azapi_resource" "lock_action_group" {
-  for_each = var.lock == null ? toset([]) : toset(keys(local.alert_action_groups))
-
-  name                   = local.lock.name
-  parent_id              = azapi_resource.action_group[each.key].id
-  type                   = var.resource_types.authorization_locks
-  body                   = local.lock.body
-  ignore_body_changes    = length(var.ignore_body_changes.authorization_locks) > 0 ? var.ignore_body_changes.authorization_locks : null
-  response_export_values = []
-  retry                  = var.retry
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
-}
-
-resource "azapi_resource" "lock_shared_action_group" {
-  for_each = var.lock == null ? toset([]) : toset(keys(var.shared_action_groups))
-
-  name                   = local.lock.name
-  parent_id              = azapi_resource.shared_action_group[each.key].id
-  type                   = var.resource_types.authorization_locks
-  body                   = local.lock.body
-  ignore_body_changes    = length(var.ignore_body_changes.authorization_locks) > 0 ? var.ignore_body_changes.authorization_locks : null
-  response_export_values = []
-  retry                  = var.retry
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
+  depends_on = [terraform_data.validation]
 }
 
 resource "azapi_resource" "lock_service_health_alert" {
@@ -222,36 +120,4 @@ resource "azapi_resource" "lock_service_health_alert" {
       update = timeouts.value.update
     }
   }
-}
-
-resource "azapi_resource" "lock_resource_group" {
-  count = var.lock != null && var.resource_group_creation_enabled ? 1 : 0
-
-  name                   = local.lock.name
-  parent_id              = azapi_resource.resource_group[0].id
-  type                   = var.resource_types.authorization_locks
-  body                   = local.lock.body
-  ignore_body_changes    = length(var.ignore_body_changes.authorization_locks) > 0 ? var.ignore_body_changes.authorization_locks : null
-  response_export_values = []
-  retry                  = var.retry
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
-
-  depends_on = [
-    azapi_resource.action_group,
-    azapi_resource.lock_action_group,
-    azapi_resource.lock_service_health_alert,
-    azapi_resource.lock_shared_action_group,
-    azapi_resource.service_health_alert,
-    azapi_resource.shared_action_group,
-  ]
 }

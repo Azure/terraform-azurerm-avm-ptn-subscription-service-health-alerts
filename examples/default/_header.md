@@ -1,5 +1,5 @@
 # Default example
 
-This deploys the module with its defaults: a resource group in the current subscription and one activity log alert for each supported service health and resource health alert type, without action groups.
+The example creates a resource group in the current subscription, then supplies its ID to the module to create the five default service health and resource health alerts without notification receivers.
 
-The only inputs are the Azure CLI (or other AzAPI) credentials and the subscription selected in that context. A random suffix keeps the resource group name unique so the example does not collide with an existing `rg-asha-<subscription ID>` resource group.
+Authenticate to a non-production subscription before running this example. A random suffix keeps the example resource group separate from existing resources.

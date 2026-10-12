@@ -1,104 +1,4 @@
 locals {
-  action_group_bodies = {
-    for key, config in local.action_group_configs : key => {
-      properties = {
-        groupShortName = config.group_short_name
-        enabled        = config.receivers.enabled
-        armRoleReceivers = [
-          for receiver in config.receivers.arm_role_receivers : {
-            name                 = receiver.name
-            roleId               = receiver.role_id
-            useCommonAlertSchema = receiver.use_common_alert_schema
-          }
-        ]
-        automationRunbookReceivers = [
-          for receiver in config.receivers.automation_runbook_receivers : {
-            name                 = receiver.name
-            automationAccountId  = receiver.automation_account_resource_id
-            isGlobalRunbook      = receiver.is_global_runbook
-            runbookName          = receiver.runbook_name
-            useCommonAlertSchema = receiver.use_common_alert_schema
-            webhookResourceId    = receiver.webhook_resource_id
-          }
-        ]
-        azureAppPushReceivers = [
-          for receiver in config.receivers.azure_app_push_receivers : {
-            name         = receiver.name
-            emailAddress = receiver.email_address
-          }
-        ]
-        azureFunctionReceivers = [
-          for receiver in config.receivers.azure_function_receivers : {
-            name                  = receiver.name
-            functionAppResourceId = receiver.function_app_resource_id
-            functionName          = receiver.function_name
-            useCommonAlertSchema  = receiver.use_common_alert_schema
-          }
-        ]
-        emailReceivers = [
-          for receiver in config.receivers.email_receivers : {
-            name                 = receiver.name
-            emailAddress         = receiver.email_address
-            useCommonAlertSchema = receiver.use_common_alert_schema
-          }
-        ]
-        eventHubReceivers = [
-          for receiver in config.receivers.event_hub_receivers : {
-            for property, value in {
-              name                 = receiver.name
-              eventHubName         = receiver.event_hub_name
-              eventHubNameSpace    = receiver.event_hub_namespace
-              subscriptionId       = receiver.subscription_id
-              tenantId             = receiver.tenant_id
-              useCommonAlertSchema = receiver.use_common_alert_schema
-            } : property => value if value != null
-          }
-        ]
-        itsmReceivers = [
-          for receiver in config.receivers.itsm_receivers : {
-            name                = receiver.name
-            connectionId        = receiver.connection_id
-            region              = receiver.region
-            ticketConfiguration = receiver.ticket_configuration
-            workspaceId         = receiver.workspace_id
-          }
-        ]
-        logicAppReceivers = [
-          for receiver in config.receivers.logic_app_receivers : {
-            name                 = receiver.name
-            resourceId           = receiver.logic_app_resource_id
-            useCommonAlertSchema = receiver.use_common_alert_schema
-          }
-        ]
-        smsReceivers = [
-          for receiver in config.receivers.sms_receivers : {
-            name        = receiver.name
-            countryCode = receiver.country_code
-            phoneNumber = receiver.phone_number
-          }
-        ]
-        voiceReceivers = [
-          for receiver in config.receivers.voice_receivers : {
-            name        = receiver.name
-            countryCode = receiver.country_code
-            phoneNumber = receiver.phone_number
-          }
-        ]
-        webhookReceivers = [
-          for receiver in config.receivers.webhook_receivers : {
-            for property, value in {
-              name                 = receiver.name
-              identifierUri        = receiver.identifier_uri
-              objectId             = receiver.object_id
-              tenantId             = receiver.tenant_id
-              useAadAuth           = receiver.use_aad_auth
-              useCommonAlertSchema = receiver.use_common_alert_schema
-            } : property => value if value != null
-          }
-        ]
-      }
-    }
-  }
   action_group_configs = merge(
     {
       for key, alert in var.service_health_alerts : "alert/${key}" => {
@@ -123,7 +23,7 @@ locals {
     for key, config in local.action_group_configs : key => length([for other in values(local.action_group_configs) : other.name if lower(other.name) == lower(config.name)]) == 1
   }
   action_group_name_valid = {
-    for key, config in local.action_group_configs : key => can(regex("^[^:<>+/&%?|\\\\[:cntrl:]]{1,260}$", config.name)) && !endswith(config.name, " ") && !endswith(config.name, ".")
+    for key, config in local.action_group_configs : key => can(regex("^[^:<>*+/&%?|\\\\[:cntrl:]]{1,260}$", config.name)) && !endswith(config.name, " ") && !endswith(config.name, ".")
   }
   action_group_receiver_names = {
     for key, config in local.action_group_configs : key => {
@@ -155,26 +55,65 @@ locals {
       length(setsubtract(names[property], local.action_group_receiver_secret_names[key][property])) == 0 && length(setsubtract(local.action_group_receiver_secret_names[key][property], names[property])) == 0
     ]) && length(setsubtract(local.action_group_receiver_secret_names[key].automationRunbookReceivers, names.automationRunbookReceivers)) == 0
   }
-  action_group_sensitive_bodies = {
-    for key, secrets in local.action_group_receiver_secrets : key => {
-      properties = {
-        for property, receivers in {
-          automationRunbookReceivers = [for name, uri in secrets.automation_runbook_receiver_service_uris : { name = name, serviceUri = uri }]
-          azureFunctionReceivers     = [for name, url in secrets.azure_function_receiver_http_trigger_urls : { name = name, httpTriggerUrl = url }]
-          logicAppReceivers          = [for name, url in secrets.logic_app_receiver_callback_urls : { name = name, callbackUrl = url }]
-          webhookReceivers           = [for name, uri in secrets.webhook_receiver_service_uris : { name = name, serviceUri = uri }]
-        } : property => receivers if length(local.action_group_receiver_secret_names[key][property]) > 0
+  action_group_receivers = {
+    for key, config in local.action_group_configs : key => {
+      arm_role_receivers = {
+        for index, receiver in config.receivers.arm_role_receivers : tostring(index) => receiver
       }
-    } if length(flatten([for names in values(local.action_group_receiver_secret_names[key]) : tolist(names)])) > 0
-  }
-  alert_action_groups = {
-    for key, config in local.action_group_configs : config.key => key if config.scope == "alert"
+      automation_runbook_receivers = {
+        for index, receiver in config.receivers.automation_runbook_receivers : tostring(index) => {
+          name                    = receiver.name
+          automation_account_id   = receiver.automation_account_resource_id
+          is_global_runbook       = receiver.is_global_runbook
+          runbook_name            = receiver.runbook_name
+          webhook_resource_id     = receiver.webhook_resource_id
+          use_common_alert_schema = receiver.use_common_alert_schema
+          service_uri             = lookup(local.action_group_receiver_secrets[key].automation_runbook_receiver_service_uris, receiver.name, null)
+        }
+      }
+      azure_app_push_receivers = {
+        for index, receiver in config.receivers.azure_app_push_receivers : tostring(index) => receiver
+      }
+      azure_function_receivers = {
+        for index, receiver in config.receivers.azure_function_receivers : tostring(index) => merge(receiver, {
+          http_trigger_url = lookup(local.action_group_receiver_secrets[key].azure_function_receiver_http_trigger_urls, receiver.name, null)
+        })
+      }
+      email_receivers = {
+        for index, receiver in config.receivers.email_receivers : tostring(index) => receiver
+      }
+      event_hub_receivers = {
+        for index, receiver in config.receivers.event_hub_receivers : tostring(index) => receiver
+      }
+      itsm_receivers = {
+        for index, receiver in config.receivers.itsm_receivers : tostring(index) => receiver
+      }
+      logic_app_receivers = {
+        for index, receiver in config.receivers.logic_app_receivers : tostring(index) => {
+          name                    = receiver.name
+          resource_id             = receiver.logic_app_resource_id
+          use_common_alert_schema = receiver.use_common_alert_schema
+          callback_url            = lookup(local.action_group_receiver_secrets[key].logic_app_receiver_callback_urls, receiver.name, null)
+        }
+      }
+      sms_receivers = {
+        for index, receiver in config.receivers.sms_receivers : tostring(index) => receiver
+      }
+      voice_receivers = {
+        for index, receiver in config.receivers.voice_receivers : tostring(index) => receiver
+      }
+      webhook_receivers = {
+        for index, receiver in config.receivers.webhook_receivers : tostring(index) => merge(receiver, {
+          service_uri = lookup(local.action_group_receiver_secrets[key].webhook_receiver_service_uris, receiver.name, null)
+        })
+      }
+    }
   }
   alert_action_group_resource_ids = {
     for key, alert in var.service_health_alerts : key => concat(
-      alert.action_group == null ? [] : alert.action_group.existing_action_group != null ? [alert.action_group.existing_action_group.resource_id] : [azapi_resource.action_group[key].id],
+      alert.action_group == null ? [] : alert.action_group.existing_action_group != null ? [alert.action_group.existing_action_group.resource_id] : [module.action_group["alert/${key}"].resource_id],
       [
-        for shared_key, shared in var.shared_action_groups : azapi_resource.shared_action_group[shared_key].id
+        for shared_key, shared in var.shared_action_groups : module.action_group["shared/${shared_key}"].resource_id
         if shared.service_health_alert_keys == null ? true : contains(shared.service_health_alert_keys, key)
       ],
     )
@@ -188,8 +127,6 @@ locals {
       }
     }
   }
-  resource_group_name        = coalesce(var.resource_group_name, "rg-asha-${local.subscription_id}")
-  resource_group_resource_id = var.resource_group_creation_enabled ? azapi_resource.resource_group[0].id : provider::azapi::subscription_resource_id(local.subscription_id, "Microsoft.Resources/resourceGroups", [local.resource_group_name])
   service_health_alert_conditions = {
     "Resource Health Unhealthy" = [
       {
@@ -272,6 +209,6 @@ locals {
   service_health_alert_names = {
     for key, alert in var.service_health_alerts : key => coalesce(alert.name, "${replace(alert.service_health_alert, " ", "")}Alert")
   }
-  subscription_id          = coalesce(var.subscription_id, data.azapi_client_config.current.subscription_id)
+  subscription_id          = provider::azapi::parse_resource_id("Microsoft.Resources/resourceGroups", var.parent_id).subscription_id
   subscription_resource_id = "/subscriptions/${local.subscription_id}"
 }

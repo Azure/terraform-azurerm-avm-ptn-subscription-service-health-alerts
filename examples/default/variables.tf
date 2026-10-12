@@ -12,6 +12,6 @@ DESCRIPTION
 variable "location" {
   type        = string
   default     = "swedencentral"
-  description = "Azure region for the resource group created by the module."
+  description = "Azure region for the example's resource group and module telemetry."
   nullable    = false
 }

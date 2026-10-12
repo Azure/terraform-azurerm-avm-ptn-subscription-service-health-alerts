@@ -14,7 +14,7 @@ This pattern module deploys Azure Service Health alerting for a subscription. It
 
 By default, one alert of each type is created, without notifications.
 
-The alerts and action groups are placed in a resource group. By default the module creates `rg-asha-<subscription ID>` in `location`. Set `resource_group_creation_enabled = false` to use an existing resource group. Activity log alerts and action groups are global resources, so `location` only sets the resource group region and the telemetry region.
+Supply the existing resource group's ARM resource ID through `parent_id`. The module monitors the subscription containing that resource group; it never creates, deletes, or locks the resource group. The examples create their own resource groups outside the module. Activity log alerts and action groups are global resources, so `location` supplies the telemetry region.
 
 The module uses the `Azure/azapi` provider and behaves like the Bicep pattern module [`avm/ptn/subscription/service-health-alerts`](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/subscription/service-health-alerts).
 
@@ -83,13 +83,12 @@ These values are sent through the write-only `sensitive_body` argument of the Az
 
 On the target subscription:
 
-- `Microsoft.Resources/subscriptions/resourceGroups/write` when the module creates the resource group.
 - `Microsoft.Insights/activityLogAlerts/*` and `Microsoft.Insights/actionGroups/*`, for example through the Monitoring Contributor or Contributor role.
 - `Microsoft.Authorization/locks/*` when `lock` is set, for example through the Owner or User Access Administrator role.
 
 ## Locks
 
-When `lock` is set, the module locks every alert and action group it creates, and the resource group when it creates it. An existing resource group or action group is not locked.
+When `lock` is set, the module locks every alert and action group it creates. The supplied resource group and existing action groups are not locked.
 
 <!-- markdownlint-disable MD033 -->
 ## Requirements
@@ -108,17 +107,11 @@ The following requirements are needed by this module:
 
 The following resources are used by this module:
 
-- [azapi_resource.action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.lock_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.lock_resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.lock_service_health_alert](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.lock_shared_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.service_health_alert](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.shared_action_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [modtm_telemetry.telemetry](https://registry.terraform.io/providers/azure/modtm/latest/docs/resources/telemetry) (resource)
 - [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
-- [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
+- [terraform_data.validation](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) (resource)
 - [azapi_client_config.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
 - [modtm_module_source.telemetry](https://registry.terraform.io/providers/azure/modtm/latest/docs/data-sources/module_source) (data source)
 
@@ -129,7 +122,13 @@ The following input variables are required:
 
 ### <a name="input_location"></a> [location](#input\_location)
 
-Description: Azure region used for the resource group created by this module and for the module telemetry. Activity log alerts and action groups are always deployed to the `global` location.
+Description: Azure region used for module telemetry. Activity log alerts and action groups are deployed to the `global` location.
+
+Type: `string`
+
+### <a name="input_parent_id"></a> [parent\_id](#input\_parent\_id)
+
+Description: The resource ID of the existing resource group that will hold the alerts and action groups. The module monitors the subscription containing this resource group and does not create or lock the resource group.
 
 Type: `string`
 
@@ -156,18 +155,23 @@ Paths use dot notation, for example `properties.enabled`. Individual list items 
 Supplying a non-empty value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument. Changes take effect only after an apply, because the value is held in provider-private state.
 
 - `authorization_locks` - Ignored body paths for the management locks created by this module.
-- `insights_action_groups` - Ignored body paths for the action groups created by this module.
+- `insights_action_groups` - Overrides passed to every action group resource module.
+- `insights_action_groups.insights_action_groups` - Ignored paths on action groups.
+- `insights_action_groups.authorization_locks` - Ignored paths on action group locks.
+- `insights_action_groups.authorization_role_assignments` - Ignored paths on action group role assignments.
 - `insights_activity_log_alerts` - Ignored body paths for the service health activity log alerts.
-- `resources_resource_groups` - Ignored body paths for the resource group created by this module.
 
 Type:
 
 ```hcl
 object({
-    authorization_locks          = optional(list(string), [])
-    insights_action_groups       = optional(list(string), [])
+    authorization_locks = optional(list(string), [])
+    insights_action_groups = optional(object({
+      insights_action_groups         = optional(list(string), [])
+      authorization_locks            = optional(list(string), [])
+      authorization_role_assignments = optional(list(string), [])
+    }), {})
     insights_activity_log_alerts = optional(list(string), [])
-    resources_resource_groups    = optional(list(string), [])
   })
 ```
 
@@ -193,39 +197,28 @@ object({
 
 Default: `null`
 
-### <a name="input_resource_group_creation_enabled"></a> [resource\_group\_creation\_enabled](#input\_resource\_group\_creation\_enabled)
-
-Description: Whether the module creates the resource group that holds the alerts and action groups. Set to `false` to deploy into an existing resource group named by `resource_group_name` in the target subscription.
-
-Type: `bool`
-
-Default: `true`
-
-### <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name)
-
-Description: The name of the resource group that holds the service health alerts and action groups. When `null`, the name defaults to `rg-asha-<subscription ID>`.
-
-Type: `string`
-
-Default: `null`
-
 ### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
 
 Description: Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
 
 - `authorization_locks` - Management locks applied when `lock` is set.
-- `insights_action_groups` - Action groups created for the alerts.
+- `insights_action_groups` - Overrides passed to every action group resource module; defaults are owned by that module.
+- `insights_action_groups.insights_action_groups` - Action group API version.
+- `insights_action_groups.authorization_locks` - Action group lock API version.
+- `insights_action_groups.authorization_role_assignments` - Action group role assignment API version.
 - `insights_activity_log_alerts` - Service health and resource health activity log alerts.
-- `resources_resource_groups` - Resource group created when `resource_group_creation_enabled` is `true`.
 
 Type:
 
 ```hcl
 object({
-    authorization_locks          = optional(string, "Microsoft.Authorization/locks@2020-05-01")
-    insights_action_groups       = optional(string, "Microsoft.Insights/actionGroups@2023-01-01")
+    authorization_locks = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+    insights_action_groups = optional(object({
+      insights_action_groups         = optional(string)
+      authorization_locks            = optional(string)
+      authorization_role_assignments = optional(string)
+    }), {})
     insights_activity_log_alerts = optional(string, "Microsoft.Insights/activityLogAlerts@2026-01-01")
-    resources_resource_groups    = optional(string, "Microsoft.Resources/resourceGroups@2025-04-01")
   })
 ```
 
@@ -257,7 +250,7 @@ Default: `null`
 
 Description: Secret URLs for the receivers of the action groups created by this module. The outer map key must match the `service_health_alerts` key of an alert whose action group is created by this module. Each inner map is keyed by the receiver `name` in the corresponding receiver list.
 
-The values are sent to Azure through the write-only `sensitive_body` argument of the AzAPI provider, so they are not shown in plan output and are not stored in Terraform state; only a hash of them is kept in provider-private state to detect changes. Supplying a non-empty value requires Terraform 1.11 or later.
+The values are passed to the action group resource module and sent through AzAPI's write-only `sensitive_body`. They are hidden in plan output and omitted from Terraform state; only hashes are retained to detect changes. Saved plan files still contain input variable values. Supplying a non-empty value requires Terraform 1.11 or later.
 
 - `automation_runbook_receiver_service_uris` - (Optional) The Automation webhook URI for each automation runbook receiver, keyed by receiver name.
 - `azure_function_receiver_http_trigger_urls` - (Optional) The HTTP trigger URL for each Azure Function receiver, keyed by receiver name. Required for every Azure Function receiver.
@@ -293,7 +286,7 @@ Description: A map of service health alerts to create as activity log alerts sco
 - `action_group` - (Optional) An action group dedicated to this alert, created by the module or referenced by ID. To notify the same receivers from several alerts, use `shared_action_groups` instead. Receiver names must be unique across all receiver types of the action group. An alert can notify at most five action groups in total, counting its own and the shared action groups that target it.
   - `existing_action_group` - (Optional) Use an existing action group instead of creating one. When set, all other `action_group` attributes are ignored and not validated.
     - `resource_id` - (Required) The resource ID of the existing action group.
-  - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`. Action group names must be unique, case-insensitively, across all action groups created by the module, 1-260 characters, must not contain `:<>+/&%\?|` or control characters, and must not end with a space or period.
+  - `name` - (Optional) The name of the action group created by this module. Defaults to `<alert name>-action-group`. Action group names must be unique, case-insensitively, across all action groups created by the module, 1-260 characters, must not contain `:<>*+/&%\?|` or control characters, and must not end with a space or period.
   - `group_short_name` - (Optional) The short name of the action group, used in SMS and email notifications. Maximum 12 characters. Defaults to the first 12 characters of the alert name.
   - `enabled` - (Optional) Whether the action group is enabled. Defaults to `true`.
   - `arm_role_receivers` - (Optional) A list of Azure Resource Manager role receivers.
@@ -346,7 +339,7 @@ Description: A map of service health alerts to create as activity log alerts sco
     - `phone_number` - (Required) The phone number.
   - `webhook_receivers` - (Optional) A list of webhook receivers. The service URI is supplied through `service_health_alert_receiver_secrets`.
     - `name` - (Required) The name of the receiver.
-    - `identifier_uri` - (Optional) The identifier URI for Microsoft Entra authentication.
+    - `identifier_uri` - (Optional) The identifier URI for Microsoft Entra authentication. Required and non-blank when `use_aad_auth` is `true`.
     - `object_id` - (Optional) The object ID of the webhook application for Microsoft Entra authentication. Required when `use_aad_auth` is `true`.
     - `tenant_id` - (Optional) The tenant ID for Microsoft Entra authentication.
     - `use_aad_auth` - (Optional) Whether to use Microsoft Entra authentication. Defaults to `false`.
@@ -565,14 +558,6 @@ map(object({
 
 Default: `{}`
 
-### <a name="input_subscription_id"></a> [subscription\_id](#input\_subscription\_id)
-
-Description: The ID of the subscription to monitor and deploy the alerts into. When `null`, the subscription of the current AzAPI provider context is used.
-
-Type: `string`
-
-Default: `null`
-
 ### <a name="input_tags"></a> [tags](#input\_tags)
 
 Description: (Optional) Tags of the resource.
@@ -611,10 +596,6 @@ The following outputs are exported:
 
 Description: A map of the resource IDs of the action groups created by this module, keyed by the `service_health_alerts` map key. Alerts that use an existing action group or no action group are not included.
 
-### <a name="output_resource_group_resource_id"></a> [resource\_group\_resource\_id](#output\_resource\_group\_resource\_id)
-
-Description: The resource ID of the resource group that holds the service health alerts and action groups.
-
 ### <a name="output_service_health_alert_resource_ids"></a> [service\_health\_alert\_resource\_ids](#output\_service\_health\_alert\_resource\_ids)
 
 Description: A map of the resource IDs of the service health activity log alerts, keyed by the `service_health_alerts` map key.
@@ -625,7 +606,13 @@ Description: A map of the resource IDs of the shared action groups, keyed by the
 
 ## Modules
 
-No modules.
+The following Modules are called:
+
+### <a name="module_action_group"></a> [action\_group](#module\_action\_group)
+
+Source: git::https://github.com/Azure/terraform-azurerm-avm-res-insights-actiongroup.git
+
+Version: 3c72ad53fd37d860705030b718669dfd495a5269
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection

@@ -26,14 +26,8 @@ resource "azapi_resource" "existing_action_group" {
   body = {
     properties = {
       groupShortName = "ashexisting"
-      enabled        = true
-      emailReceivers = [
-        {
-          name                 = "platform-team"
-          emailAddress         = "platform-team@example.com"
-          useCommonAlertSchema = true
-        }
-      ]
+      enabled        = false
+      emailReceivers = []
     }
   }
   response_export_values = []
@@ -43,12 +37,11 @@ module "test" {
   source = "../../"
 
   location         = var.location
+  parent_id        = azapi_resource.resource_group.id
   enable_telemetry = var.enable_telemetry
   lock = {
     kind = "CanNotDelete"
   }
-  resource_group_creation_enabled = false
-  resource_group_name             = azapi_resource.resource_group.name
   retry = {
     error_message_regex  = ["ScopeLocked"]
     interval_seconds     = 15
@@ -57,7 +50,7 @@ module "test" {
   service_health_alert_receiver_secrets = {
     incident = {
       webhook_receiver_service_uris = {
-        incident-webhook = sensitive("https://example.com/service-health")
+        incident-webhook = sensitive("https://example.invalid/service-health")
       }
     }
   }
@@ -68,10 +61,11 @@ module "test" {
       action_group = {
         name             = "ag-asha-incident-${random_string.suffix.result}"
         group_short_name = "ashincident"
+        enabled          = false
         email_receivers = [
           {
             name                    = "on-call"
-            email_address           = "on-call@example.com"
+            email_address           = "on-call@example.invalid"
             use_common_alert_schema = true
           }
         ]
@@ -106,21 +100,21 @@ module "test" {
     platform = {
       name                      = "ag-asha-platform-${random_string.suffix.result}"
       group_short_name          = "ashplatform"
+      enabled                   = false
       service_health_alert_keys = ["incident", "advisory", "security"]
       email_receivers = [
         {
           name          = "platform-team"
-          email_address = "platform-team@example.com"
+          email_address = "platform-team@example.invalid"
         },
         {
           name                    = "platform-lead"
-          email_address           = "platform-lead@example.com"
+          email_address           = "platform-lead@example.invalid"
           use_common_alert_schema = true
         }
       ]
     }
   }
-  subscription_id = data.azapi_client_config.current.subscription_id
   tags = {
     environment = "example"
     workload    = "service-health"
