@@ -50,7 +50,7 @@ module "test" {
   service_health_alert_receiver_secrets = {
     incident = {
       webhook_receiver_service_uris = {
-        incident-webhook = sensitive("https://example.invalid/service-health")
+        incident-webhook = sensitive("https://example.com/service-health")
       }
     }
   }

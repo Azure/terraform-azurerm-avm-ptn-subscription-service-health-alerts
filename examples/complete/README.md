@@ -11,7 +11,7 @@ This deploys the module into an existing resource group and exercises its option
 - An existing action group, created by the example, notified by the maintenance alert.
 - A `CanNotDelete` lock on every alert and on both action groups created by the module, tags, `retry` and `timeouts`.
 
-This example requires Terraform 1.11 or later because it supplies a receiver secret. All action groups are disabled, and the sample receivers use the reserved `.invalid` domain to avoid live notifications. Authenticate to a non-production subscription before running it.
+This example requires Terraform 1.11 or later because it supplies a receiver secret. All action groups are disabled, and email recipients use the reserved `.invalid` domain. The webhook uses the reserved `example.com` documentation domain because Azure rejects non-resolving webhook URLs even on disabled action groups. Replace the placeholder destinations before enabling notifications. Authenticate to a non-production subscription before running it.
 
 ```hcl
 provider "azapi" {}
@@ -66,7 +66,7 @@ module "test" {
   service_health_alert_receiver_secrets = {
     incident = {
       webhook_receiver_service_uris = {
-        incident-webhook = sensitive("https://example.invalid/service-health")
+        incident-webhook = sensitive("https://example.com/service-health")
       }
     }
   }
