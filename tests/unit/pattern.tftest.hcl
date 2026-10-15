@@ -1,8 +1,9 @@
 mock_provider "azapi" {
   mock_data "azapi_client_config" {
     defaults = {
-      subscription_id = "00000000-0000-0000-0000-000000000000"
-      tenant_id       = "00000000-0000-0000-0000-000000000001"
+      subscription_id          = "00000000-0000-0000-0000-000000000000"
+      tenant_id                = "00000000-0000-0000-0000-000000000001"
+      subscription_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000"
     }
   }
 
@@ -14,6 +15,7 @@ mock_provider "azapi" {
 }
 
 mock_provider "modtm" {}
+
 mock_provider "random" {}
 
 override_module {
@@ -78,8 +80,13 @@ run "defaults" {
     error_message = "Defaults must create no action groups or notification destinations."
   }
   assert {
-    condition     = length(modtm_telemetry.telemetry) == 1
+    condition     = length(azapi_resource.telemetry) == 1
     error_message = "Telemetry must be created when enabled."
+  }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
   }
 }
 
@@ -93,6 +100,11 @@ run "subscription_from_existing_parent" {
   assert {
     condition     = local.subscription_resource_id == "/subscriptions/11111111-1111-1111-1111-111111111111"
     error_message = "An explicitly supplied parent must determine the monitored subscription, not the provider's active subscription."
+  }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
   }
 }
 
@@ -174,6 +186,11 @@ run "dedicated_existing_and_shared_groups" {
   assert {
     condition     = local.service_health_alert_names["maintenance"] == "planned-maintenance"
     error_message = "Explicit alert names must be retained."
+  }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
   }
 }
 
@@ -261,6 +278,11 @@ run "receiver_mapping_and_secret_order" {
     condition     = issensitive(local.action_group_receivers["alert/incident"].webhook_receivers["0"].service_uri) && issensitive(local.action_group_receivers["alert/incident"].automation_runbook_receivers["0"].service_uri)
     error_message = "Receiver URLs must remain sensitive while crossing the module boundary."
   }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_receiver_secret_mapping" {
@@ -279,6 +301,11 @@ run "shared_receiver_secret_mapping" {
     condition     = nonsensitive(local.action_group_receivers["shared/ops"].webhook_receivers["0"].service_uri) == "https://example.invalid/shared"
     error_message = "Shared receiver URLs must use the shared secret map."
   }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "no_alerts_and_telemetry_disabled" {
@@ -294,8 +321,13 @@ run "no_alerts_and_telemetry_disabled" {
     error_message = "Empty collections must create no alerts or action groups."
   }
   assert {
-    condition     = length(modtm_telemetry.telemetry) == 0
+    condition     = length(azapi_resource.telemetry) == 0
     error_message = "The telemetry opt-out must be respected."
+  }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
   }
 }
 
@@ -305,6 +337,11 @@ run "invalid_parent_id" {
     parent_id = "/subscriptions/00000000-0000-0000-0000-000000000000"
   }
   expect_failures = [var.parent_id]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_service_health_alert" {
@@ -313,6 +350,11 @@ run "invalid_service_health_alert" {
     service_health_alerts = { invalid = { service_health_alert = "Service Health Outage" } }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_alert_name" {
@@ -321,6 +363,11 @@ run "invalid_alert_name" {
     service_health_alerts = { incident = { service_health_alert = "Service Health Incident", name = "has spaces" } }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "alert_name_trailing_period" {
@@ -329,6 +376,11 @@ run "alert_name_trailing_period" {
     service_health_alerts = { incident = { service_health_alert = "Service Health Incident", name = "incident." } }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "duplicate_alert_names" {
@@ -340,6 +392,11 @@ run "duplicate_alert_names" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "group_short_name_too_long" {
@@ -353,6 +410,11 @@ run "group_short_name_too_long" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_group_short_name_too_long" {
@@ -361,6 +423,11 @@ run "shared_group_short_name_too_long" {
     shared_action_groups = { ops = { group_short_name = "thirteenchars" } }
   }
   expect_failures = [var.shared_action_groups]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_existing_group_id" {
@@ -374,6 +441,11 @@ run "invalid_existing_group_id" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_logic_app_id" {
@@ -387,6 +459,11 @@ run "invalid_logic_app_id" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_function_id" {
@@ -400,6 +477,11 @@ run "invalid_function_id" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_lock" {
@@ -408,6 +490,11 @@ run "invalid_lock" {
     lock = { kind = "None" }
   }
   expect_failures = [var.lock]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "missing_receiver_secret" {
@@ -421,6 +508,11 @@ run "missing_receiver_secret" {
     }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "unknown_receiver_secret" {
@@ -437,6 +529,11 @@ run "unknown_receiver_secret" {
     }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "unknown_alert_secret" {
@@ -447,6 +544,11 @@ run "unknown_alert_secret" {
     }
   }
   expect_failures = [var.service_health_alert_receiver_secrets]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "duplicate_receiver_names" {
@@ -462,6 +564,11 @@ run "duplicate_receiver_names" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "receiver_names_duplicated_across_types" {
@@ -478,6 +585,11 @@ run "receiver_names_duplicated_across_types" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_receiver_names_duplicated_across_types" {
@@ -491,6 +603,11 @@ run "shared_receiver_names_duplicated_across_types" {
     }
   }
   expect_failures = [var.shared_action_groups]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_group_unknown_alert" {
@@ -499,6 +616,11 @@ run "shared_group_unknown_alert" {
     shared_action_groups = { ops = { service_health_alert_keys = ["unknown"] } }
   }
   expect_failures = [var.shared_action_groups]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_group_missing_secret" {
@@ -507,6 +629,11 @@ run "shared_group_missing_secret" {
     shared_action_groups = { ops = { webhook_receivers = [{ name = "hook" }] } }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_secret_unknown_group" {
@@ -517,6 +644,11 @@ run "shared_secret_unknown_group" {
     }
   }
   expect_failures = [var.shared_action_group_receiver_secrets]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "group_names_collide_across_dedicated_and_shared" {
@@ -528,6 +660,11 @@ run "group_names_collide_across_dedicated_and_shared" {
     }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "dedicated_names_collide_case_insensitively" {
@@ -539,6 +676,11 @@ run "dedicated_names_collide_case_insensitively" {
     }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_generated_group_name" {
@@ -547,6 +689,11 @@ run "invalid_generated_group_name" {
     shared_action_groups = { "ops." = {} }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "invalid_group_name_asterisk" {
@@ -555,6 +702,11 @@ run "invalid_group_name_asterisk" {
     shared_action_groups = { ops = { name = "ag-*ops" } }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "more_than_five_action_groups" {
@@ -566,6 +718,11 @@ run "more_than_five_action_groups" {
     }
   }
   expect_failures = [terraform_data.validation]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "exactly_five_action_groups" {
@@ -580,6 +737,11 @@ run "exactly_five_action_groups" {
     condition     = length(local.alert_action_group_resource_ids["incident"]) == 5
     error_message = "Exactly five action groups must remain supported."
   }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "secure_webhook_without_object_id" {
@@ -593,6 +755,11 @@ run "secure_webhook_without_object_id" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_secure_webhook_without_object_id" {
@@ -603,6 +770,11 @@ run "shared_secure_webhook_without_object_id" {
     }
   }
   expect_failures = [var.shared_action_groups]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "empty_ignore_body_path" {
@@ -613,6 +785,11 @@ run "empty_ignore_body_path" {
     }
   }
   expect_failures = [var.ignore_body_changes]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "secure_webhook_without_identifier_uri" {
@@ -628,6 +805,11 @@ run "secure_webhook_without_identifier_uri" {
     }
   }
   expect_failures = [var.service_health_alerts]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }
 
 run "shared_secure_webhook_blank_identifier_uri" {
@@ -640,4 +822,9 @@ run "shared_secure_webhook_blank_identifier_uri" {
     }
   }
   expect_failures = [var.shared_action_groups]
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
+  }
 }

@@ -34,7 +34,8 @@ resource "azapi_resource" "existing_action_group" {
 }
 
 module "test" {
-  source = "../../"
+  source    = "../../"
+  providers = { modtm = modtm }
 
   location         = var.location
   parent_id        = azapi_resource.resource_group.id
