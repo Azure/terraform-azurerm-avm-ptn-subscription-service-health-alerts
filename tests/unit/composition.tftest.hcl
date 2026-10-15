@@ -1,8 +1,9 @@
 mock_provider "azapi" {
   mock_data "azapi_client_config" {
     defaults = {
-      subscription_id = "00000000-0000-0000-0000-000000000000"
-      tenant_id       = "00000000-0000-0000-0000-000000000001"
+      subscription_id          = "00000000-0000-0000-0000-000000000000"
+      tenant_id                = "00000000-0000-0000-0000-000000000001"
+      subscription_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000"
     }
   }
   mock_resource "azapi_resource" {
@@ -13,6 +14,7 @@ mock_provider "azapi" {
 }
 
 mock_provider "modtm" {}
+
 mock_provider "random" {}
 
 override_resource {
@@ -109,5 +111,10 @@ run "real_module_composition_with_mocked_providers" {
   assert {
     condition     = toset(keys(output.service_health_alert_resource_ids)) == toset(["incident", "resource_health"])
     error_message = "Both leaf-only and nested any-of condition trees must work with the resource-module interface."
+  }
+  providers = {
+    azapi  = azapi
+    modtm  = modtm
+    random = random
   }
 }
