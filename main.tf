@@ -26,10 +26,9 @@ resource "terraform_data" "validation" {
 }
 
 module "action_group" {
-  source    = "Azure/avm-res-insights-actiongroup/azurerm"
-  version   = "0.1.0"
-  providers = { modtm = modtm }
-  for_each  = local.action_group_configs
+  source   = "Azure/avm-res-insights-actiongroup/azurerm"
+  version  = "0.1.0"
+  for_each = local.action_group_configs
 
   location                     = "global"
   name                         = each.value.name
@@ -59,10 +58,9 @@ module "action_group" {
 }
 
 module "service_health_alert" {
-  source    = "Azure/avm-res-insights-activitylogalert/azurerm"
-  version   = "0.1.0"
-  providers = { modtm = modtm }
-  for_each  = var.service_health_alerts
+  source   = "Azure/avm-res-insights-activitylogalert/azurerm"
+  version  = "0.1.0"
+  for_each = var.service_health_alerts
 
   condition = {
     all_of = local.service_health_alert_conditions[each.value.service_health_alert]

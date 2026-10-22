@@ -19,8 +19,7 @@ resource "azapi_resource" "resource_group" {
 }
 
 module "test" {
-  source    = "../../"
-  providers = { modtm = modtm }
+  source = "../../"
 
   location         = var.location
   parent_id        = azapi_resource.resource_group.id
