@@ -82,6 +82,7 @@ These values are sent through the write-only `sensitive_body` argument of the Az
 On the target subscription:
 
 - `Microsoft.Insights/activityLogAlerts/*` and `Microsoft.Insights/actionGroups/*`, for example through the Monitoring Contributor or Contributor role.
+- `Microsoft.Resources/deployments/read`, `write`, and `delete` at the active subscription when telemetry is enabled.
 - `Microsoft.Authorization/locks/*` when `lock` is set, for example through the Owner or User Access Administrator role.
 
 ## Locks

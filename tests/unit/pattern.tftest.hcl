@@ -14,8 +14,6 @@ mock_provider "azapi" {
   }
 }
 
-mock_provider "modtm" {}
-
 mock_provider "random" {}
 
 override_module {
@@ -85,7 +83,6 @@ run "defaults" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -103,7 +100,6 @@ run "subscription_from_existing_parent" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -189,7 +185,6 @@ run "dedicated_existing_and_shared_groups" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -280,7 +275,6 @@ run "receiver_mapping_and_secret_order" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -303,7 +297,6 @@ run "shared_receiver_secret_mapping" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -326,7 +319,6 @@ run "no_alerts_and_telemetry_disabled" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -339,7 +331,6 @@ run "invalid_parent_id" {
   expect_failures = [var.parent_id]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -352,7 +343,6 @@ run "invalid_service_health_alert" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -365,7 +355,6 @@ run "invalid_alert_name" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -378,7 +367,6 @@ run "alert_name_trailing_period" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -394,7 +382,6 @@ run "duplicate_alert_names" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -412,7 +399,6 @@ run "group_short_name_too_long" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -425,7 +411,6 @@ run "shared_group_short_name_too_long" {
   expect_failures = [var.shared_action_groups]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -443,7 +428,6 @@ run "invalid_existing_group_id" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -461,7 +445,6 @@ run "invalid_logic_app_id" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -479,7 +462,6 @@ run "invalid_function_id" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -492,7 +474,6 @@ run "invalid_lock" {
   expect_failures = [var.lock]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -510,7 +491,6 @@ run "missing_receiver_secret" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -531,7 +511,6 @@ run "unknown_receiver_secret" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -546,7 +525,6 @@ run "unknown_alert_secret" {
   expect_failures = [var.service_health_alert_receiver_secrets]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -566,7 +544,6 @@ run "duplicate_receiver_names" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -587,7 +564,6 @@ run "receiver_names_duplicated_across_types" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -605,7 +581,6 @@ run "shared_receiver_names_duplicated_across_types" {
   expect_failures = [var.shared_action_groups]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -618,7 +593,6 @@ run "shared_group_unknown_alert" {
   expect_failures = [var.shared_action_groups]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -631,7 +605,6 @@ run "shared_group_missing_secret" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -646,7 +619,6 @@ run "shared_secret_unknown_group" {
   expect_failures = [var.shared_action_group_receiver_secrets]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -662,7 +634,6 @@ run "group_names_collide_across_dedicated_and_shared" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -678,7 +649,6 @@ run "dedicated_names_collide_case_insensitively" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -691,7 +661,6 @@ run "invalid_generated_group_name" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -704,7 +673,6 @@ run "invalid_group_name_asterisk" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -720,7 +688,6 @@ run "more_than_five_action_groups" {
   expect_failures = [terraform_data.validation]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -739,7 +706,6 @@ run "exactly_five_action_groups" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -757,7 +723,6 @@ run "secure_webhook_without_object_id" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -772,7 +737,6 @@ run "shared_secure_webhook_without_object_id" {
   expect_failures = [var.shared_action_groups]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -787,7 +751,6 @@ run "empty_ignore_body_path" {
   expect_failures = [var.ignore_body_changes]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -807,7 +770,6 @@ run "secure_webhook_without_identifier_uri" {
   expect_failures = [var.service_health_alerts]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
@@ -824,7 +786,6 @@ run "shared_secure_webhook_blank_identifier_uri" {
   expect_failures = [var.shared_action_groups]
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }

@@ -84,6 +84,7 @@ These values are sent through the write-only `sensitive_body` argument of the Az
 On the target subscription:
 
 - `Microsoft.Insights/activityLogAlerts/*` and `Microsoft.Insights/actionGroups/*`, for example through the Monitoring Contributor or Contributor role.
+- `Microsoft.Resources/deployments/read`, `write`, and `delete` at the active subscription when telemetry is enabled.
 - `Microsoft.Authorization/locks/*` when `lock` is set, for example through the Owner or User Access Administrator role.
 
 ## Locks
@@ -95,11 +96,9 @@ When `lock` is set, the module locks every alert and action group it creates. Th
 
 The following requirements are needed by this module:
 
-- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.9, < 2.0)
+- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.12, < 2.0)
 
 - <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.13)
-
-- <a name="requirement_modtm"></a> [modtm](#requirement\_modtm) (~> 0.3)
 
 ## Resources
 
@@ -617,7 +616,7 @@ The following Modules are called:
 
 Source: Azure/avm-res-insights-actiongroup/azurerm
 
-Version: 0.1.0
+Version: 0.3.0
 
 ### <a name="module_service_health_alert"></a> [service\_health\_alert](#module\_service\_health\_alert)
 

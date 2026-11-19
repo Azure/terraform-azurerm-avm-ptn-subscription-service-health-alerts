@@ -27,10 +27,10 @@ resource "terraform_data" "validation" {
 
 module "action_group" {
   source   = "Azure/avm-res-insights-actiongroup/azurerm"
-  version  = "0.1.0"
+  version  = "0.3.0"
   for_each = local.action_group_configs
 
-  location                     = "global"
+  location                     = var.location
   name                         = each.value.name
   parent_id                    = var.parent_id
   short_name                   = each.value.group_short_name
@@ -42,6 +42,7 @@ module "action_group" {
   enable_telemetry             = var.enable_telemetry
   enabled                      = each.value.receivers.enabled
   event_hub_receivers          = local.action_group_receivers[each.key].event_hub_receivers
+  global_location_enabled      = true
   ignore_body_changes          = var.ignore_body_changes.insights_action_groups
   itsm_receivers               = local.action_group_receivers[each.key].itsm_receivers
   lock                         = var.lock
