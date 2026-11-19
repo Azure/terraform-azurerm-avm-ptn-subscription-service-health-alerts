@@ -13,8 +13,6 @@ mock_provider "azapi" {
   }
 }
 
-mock_provider "modtm" {}
-
 mock_provider "random" {}
 
 override_resource {
@@ -114,7 +112,6 @@ run "real_module_composition_with_mocked_providers" {
   }
   providers = {
     azapi  = azapi
-    modtm  = modtm
     random = random
   }
 }
