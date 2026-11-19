@@ -59,7 +59,7 @@ module "action_group" {
 
 module "service_health_alert" {
   source   = "Azure/avm-res-insights-activitylogalert/azurerm"
-  version  = "0.1.0"
+  version  = "0.2.0"
   for_each = var.service_health_alerts
 
   condition = {
