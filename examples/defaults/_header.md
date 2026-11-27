@@ -1,4 +1,4 @@
-# Default example
+# Defaults example
 
 The example creates a resource group in the current subscription, then supplies its ID to the module to create the five default service health and resource health alerts without notification receivers.
 
